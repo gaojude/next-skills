@@ -3,7 +3,7 @@ import type { Agent, AgentId } from "./types.js";
 export const AGENTS: Record<AgentId, Agent> = {
   claude: {
     id: "claude",
-    name: "Claude Code",
+    name: "Claude Code / OpenCode",
     detectDir: ".claude",
     skillsDir: ".claude/skills",
   },
@@ -13,35 +13,20 @@ export const AGENTS: Record<AgentId, Agent> = {
     detectDir: ".gemini",
     skillsDir: ".gemini/skills",
   },
-  copilot: {
-    id: "copilot",
-    name: "GitHub Copilot",
-    detectDir: ".github",
-    skillsDir: ".github/skills",
-  },
   cursor: {
     id: "cursor",
     name: "Cursor",
     detectDir: ".cursor",
     skillsDir: ".cursor/skills",
   },
-  opencode: {
-    id: "opencode",
-    name: "OpenCode",
-    detectDir: ".opencode",
-    skillsDir: ".opencode/skills",
+  codex: {
+    id: "codex",
+    name: "Codex",
+    detectDir: ".codex",
+    skillsDir: ".codex/skills",
   },
 };
 
 export const AGENT_IDS = Object.keys(AGENTS) as AgentId[];
-
-export function getAgent(id: AgentId): Agent {
-  return AGENTS[id];
-}
-
-export function getSkillPath(agentId: AgentId, skillName: string): string {
-  const agent = AGENTS[agentId];
-  return `${agent.skillsDir}/${skillName}`;
-}
 
 export * from "./types.js";

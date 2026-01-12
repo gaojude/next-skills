@@ -1,14 +1,17 @@
-import { existsSync, mkdirSync, writeFileSync, lstatSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, writeFileSync, lstatSync, unlinkSync, rmSync } from "node:fs";
+import { join, dirname } from "node:path";
 import { generateSkillWithClone } from "../generator/index.js";
-import type { SkillMeta } from "../version/meta.js";
+import { writeSkillMeta, removeSkillMeta, getInstalledSkillNames, type SkillEntry } from "../version/meta.js";
 import {
   sortAgentsByDir,
   createSymlinkToAgent,
   getAgentSkillPath,
+  removeSkillFromAgent,
   type SymlinkResult,
 } from "./symlink.js";
 import type { AgentId } from "../agents/types.js";
+
+const SKILL_NAME = "nextjs-doc";
 
 export interface InstallOptions {
   cwd: string;
@@ -41,20 +44,33 @@ export async function installSkill(
   const primaryAgent = sortedAgents[0];
   const secondaryAgents = sortedAgents.slice(1);
   const primaryPath = getAgentSkillPath(cwd, primaryAgent);
+  const skillsDir = dirname(primaryPath);
   const docsDir = join(primaryPath, "docs");
 
   try {
-    // Ensure primary skill directory exists
-    if (!existsSync(primaryPath)) {
-      mkdirSync(primaryPath, { recursive: true });
-    } else {
-      // Remove if it's a symlink (switching from secondary to primary)
-      const stat = lstatSync(primaryPath);
-      if (stat.isSymbolicLink()) {
-        unlinkSync(primaryPath);
-        mkdirSync(primaryPath, { recursive: true });
+    // Clean up existing skill folders from primary location
+    // Secondary agents just have symlinks that will be recreated
+    const installedSkills = getInstalledSkillNames(skillsDir);
+    for (const skillName of installedSkills) {
+      const skillPath = join(skillsDir, skillName);
+      if (existsSync(skillPath)) {
+        rmSync(skillPath, { recursive: true });
       }
     }
+
+    // Remove symlinks from secondary agents
+    for (const agentId of secondaryAgents) {
+      const symlinkPath = getAgentSkillPath(cwd, agentId);
+      if (existsSync(symlinkPath)) {
+        const stat = lstatSync(symlinkPath);
+        if (stat.isSymbolicLink()) {
+          unlinkSync(symlinkPath);
+        }
+      }
+    }
+
+    // Create primary skill directory
+    mkdirSync(primaryPath, { recursive: true });
 
     // Generate skill by cloning docs (this populates docs/)
     const { content, libVersion, skillVersion } = await generateSkillWithClone(
@@ -65,18 +81,13 @@ export async function installSkill(
     // Write SKILL.md
     writeFileSync(join(primaryPath, "SKILL.md"), content, "utf-8");
 
-    // Write metadata
-    const meta: SkillMeta = {
+    // Write metadata to skills directory level
+    const meta: SkillEntry = {
       skillVersion,
       libVersion,
       installedAt: new Date().toISOString(),
-      agents: sortedAgents,
     };
-    writeFileSync(
-      join(primaryPath, ".next-skills-meta.json"),
-      JSON.stringify(meta, null, 2),
-      "utf-8"
-    );
+    writeSkillMeta(skillsDir, SKILL_NAME, meta);
 
     const agentResults: SymlinkResult[] = [
       {
@@ -114,6 +125,25 @@ export async function installSkill(
   }
 }
 
+/**
+ * Uninstall the skill from all specified agents.
+ */
+export function uninstallSkill(cwd: string, agents: AgentId[]): void {
+  if (agents.length === 0) return;
+
+  const sortedAgents = sortAgentsByDir(agents);
+  const primaryAgent = sortedAgents[0];
+  const primaryPath = getAgentSkillPath(cwd, primaryAgent);
+  const skillsDir = dirname(primaryPath);
+
+  // Remove from all agents
+  for (const agentId of agents) {
+    removeSkillFromAgent(cwd, agentId);
+  }
+
+  // Remove metadata
+  removeSkillMeta(skillsDir, SKILL_NAME);
+}
+
 export * from "./detect.js";
-export * from "./sync.js";
 export * from "./symlink.js";

@@ -18,13 +18,23 @@ export async function cloneDocsFolder(
     mkdirSync(tempDir, { recursive: true });
 
     // Sparse clone with only docs folder
-    execSync(
-      `git clone --depth 1 --filter=blob:none --sparse --branch ${tag} https://github.com/vercel/next.js.git .`,
-      {
-        cwd: tempDir,
-        stdio: "pipe",
+    try {
+      execSync(
+        `git clone --depth 1 --filter=blob:none --sparse --branch ${tag} https://github.com/vercel/next.js.git .`,
+        {
+          cwd: tempDir,
+          stdio: "pipe",
+        }
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("not found") || message.includes("did not match")) {
+        throw new Error(
+          `Could not find documentation for Next.js ${tag}. This version may not exist on GitHub yet.`
+        );
       }
-    );
+      throw error;
+    }
 
     // Set sparse-checkout to only include docs
     execSync("git sparse-checkout set docs", {

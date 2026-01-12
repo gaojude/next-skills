@@ -1,7 +1,7 @@
 {
   "name": "next-skills",
-  "version": "1.0.0",
-  "description": "Install Next.js documentation as an Agent Skill for AI coding agents",
+  "version": "0.0.1",
+  "description": "CLI to install and manage Agent Skills for Claude Code, Gemini CLI, Cursor, and Codex",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {

@@ -1,15 +1,16 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { readSkillMeta, type SkillMeta } from "../version/meta.js";
-import { AGENTS, AGENT_IDS } from "../agents/index.js";
+import { readSkillMeta, type SkillEntry } from "../version/meta.js";
+import { AGENTS, AGENT_IDS, type AgentId } from "../agents/index.js";
 import { sortAgentsByDir } from "./symlink.js";
 
 const SKILL_NAME = "nextjs-doc";
 
 export interface InstallationStatus {
   installed: boolean;
-  meta: SkillMeta | null;
+  meta: SkillEntry | null;
   primaryPath: string | null;
+  skillsDir: string | null;
 }
 
 /**
@@ -22,15 +23,18 @@ export function detectExistingInstallation(cwd: string): InstallationStatus {
 
   for (const agentId of sortedAgents) {
     const agent = AGENTS[agentId];
-    const skillPath = join(cwd, agent.skillsDir, SKILL_NAME);
+    const skillsDir = join(cwd, agent.skillsDir);
+    const skillPath = join(skillsDir, SKILL_NAME);
     const skillMdPath = join(skillPath, "SKILL.md");
 
     if (existsSync(skillMdPath)) {
-      const meta = readSkillMeta(skillPath);
+      // Read from skills directory level (one level up from skill folder)
+      const meta = readSkillMeta(skillsDir, SKILL_NAME);
       return {
         installed: true,
         meta,
         primaryPath: skillPath,
+        skillsDir,
       };
     }
   }
@@ -39,6 +43,7 @@ export function detectExistingInstallation(cwd: string): InstallationStatus {
     installed: false,
     meta: null,
     primaryPath: null,
+    skillsDir: null,
   };
 }
 
@@ -46,7 +51,7 @@ export function detectExistingInstallation(cwd: string): InstallationStatus {
  * Check if the installed skill needs updating.
  */
 export function needsUpdate(
-  currentMeta: SkillMeta | null,
+  currentMeta: SkillEntry | null,
   newLibVersion: string,
   newSkillVersion: string
 ): { needsUpdate: boolean; reason?: string } {
@@ -69,4 +74,23 @@ export function needsUpdate(
   }
 
   return { needsUpdate: false };
+}
+
+/**
+ * Get list of agents that have the skill installed (either primary files or symlinks).
+ */
+export function getInstalledAgents(cwd: string): AgentId[] {
+  const installed: AgentId[] = [];
+
+  for (const agentId of AGENT_IDS) {
+    const agent = AGENTS[agentId];
+    const skillPath = join(cwd, agent.skillsDir, SKILL_NAME);
+    const skillMdPath = join(skillPath, "SKILL.md");
+
+    if (existsSync(skillMdPath)) {
+      installed.push(agentId);
+    }
+  }
+
+  return installed;
 }

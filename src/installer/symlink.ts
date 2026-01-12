@@ -100,3 +100,25 @@ export function createSymlinkToAgent(
     };
   }
 }
+
+/**
+ * Remove the skill from an agent.
+ */
+export function removeSkillFromAgent(cwd: string, agentId: AgentId): boolean {
+  const skillPath = getAgentSkillPath(cwd, agentId);
+
+  try {
+    if (existsSync(skillPath)) {
+      const stat = lstatSync(skillPath);
+      if (stat.isSymbolicLink()) {
+        unlinkSync(skillPath);
+      } else if (stat.isDirectory()) {
+        rmSync(skillPath, { recursive: true });
+      }
+      return true;
+    }
+    return true; // Already doesn't exist
+  } catch {
+    return false;
+  }
+}

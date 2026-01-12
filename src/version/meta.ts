@@ -1,25 +1,33 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import type { AgentId } from "../agents/types.js";
 
-export interface SkillMeta {
+export interface SkillEntry {
   /** Version of the next-skills package that generated this skill */
   skillVersion: string;
   /** Version of Next.js the docs are generated for */
   libVersion: string;
   /** ISO timestamp of when the skill was installed */
   installedAt: string;
-  /** Which agents this skill is installed for */
-  agents: AgentId[];
 }
 
-const META_FILENAME = ".next-skills-meta.json";
+export interface SkillsMetadata {
+  skills: Record<string, SkillEntry>;
+}
+
+const META_FILENAME = ".next-skills.json";
 
 /**
- * Read the skill metadata from the canonical location.
+ * Get the path to the metadata file for a skills directory.
  */
-export function readSkillMeta(skillDir: string): SkillMeta | null {
-  const metaPath = join(skillDir, META_FILENAME);
+export function getMetaPath(skillsDir: string): string {
+  return join(skillsDir, META_FILENAME);
+}
+
+/**
+ * Read the skills metadata from the skills directory.
+ */
+export function readSkillsMetadata(skillsDir: string): SkillsMetadata | null {
+  const metaPath = getMetaPath(skillsDir);
 
   if (!existsSync(metaPath)) {
     return null;
@@ -27,18 +35,64 @@ export function readSkillMeta(skillDir: string): SkillMeta | null {
 
   try {
     const content = readFileSync(metaPath, "utf-8");
-    return JSON.parse(content) as SkillMeta;
+    return JSON.parse(content) as SkillsMetadata;
   } catch {
     return null;
   }
 }
 
 /**
- * Write the skill metadata to the canonical location.
+ * Write the skills metadata to the skills directory.
  */
-export function writeSkillMeta(skillDir: string, meta: SkillMeta): void {
-  const metaPath = join(skillDir, META_FILENAME);
+export function writeSkillsMetadata(skillsDir: string, meta: SkillsMetadata): void {
+  const metaPath = getMetaPath(skillsDir);
   writeFileSync(metaPath, JSON.stringify(meta, null, 2) + "\n", "utf-8");
+}
+
+/**
+ * Read a specific skill's metadata.
+ */
+export function readSkillMeta(skillsDir: string, skillName: string): SkillEntry | null {
+  const metadata = readSkillsMetadata(skillsDir);
+  if (!metadata) {
+    return null;
+  }
+  return metadata.skills[skillName] || null;
+}
+
+/**
+ * Write a specific skill's metadata.
+ */
+export function writeSkillMeta(
+  skillsDir: string,
+  skillName: string,
+  entry: SkillEntry
+): void {
+  const metadata = readSkillsMetadata(skillsDir) || { skills: {} };
+  metadata.skills[skillName] = entry;
+  writeSkillsMetadata(skillsDir, metadata);
+}
+
+/**
+ * Remove a skill from metadata.
+ */
+export function removeSkillMeta(skillsDir: string, skillName: string): void {
+  const metadata = readSkillsMetadata(skillsDir);
+  if (metadata && metadata.skills[skillName]) {
+    delete metadata.skills[skillName];
+    writeSkillsMetadata(skillsDir, metadata);
+  }
+}
+
+/**
+ * Get all installed skill names from metadata.
+ */
+export function getInstalledSkillNames(skillsDir: string): string[] {
+  const metadata = readSkillsMetadata(skillsDir);
+  if (!metadata) {
+    return [];
+  }
+  return Object.keys(metadata.skills);
 }
 
 /**

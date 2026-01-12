@@ -19,5 +19,10 @@ export function detectInstalledAgents(cwd: string): AgentId[] {
     }
   }
 
+  // Also detect .opencode as claude (they share skills directory)
+  if (!detected.includes("claude") && existsSync(join(cwd, ".opencode"))) {
+    detected.push("claude");
+  }
+
   return detected;
 }

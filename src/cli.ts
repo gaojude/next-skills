@@ -8,8 +8,11 @@ import { AGENTS, AGENT_IDS } from "./agents/index.js";
 import { detectInstalledAgents } from "./agents/detect.js";
 import {
   installSkill,
+  uninstallSkill,
   detectExistingInstallation,
   needsUpdate,
+  getInstalledAgents,
+  removeSkillFromAgent,
 } from "./installer/index.js";
 import type { AgentId } from "./agents/types.js";
 
@@ -22,20 +25,10 @@ export async function run(): Promise<void> {
       "Install Next.js documentation as an Agent Skill for AI coding agents"
     )
     .version(getOwnPackageVersion())
-    .option(
-      "-a, --agent <agents...>",
-      "Specify agent(s) to install for (claude, gemini, copilot, cursor, opencode)"
-    )
-    .option("-f, --force", "Force reinstall even if already up to date")
-    .option("-s, --sync", "Sync/update existing installation to latest")
+    .option("-c, --config", "Modify agent selection")
     .parse();
 
-  const options = program.opts<{
-    agent?: string[];
-    force?: boolean;
-    sync?: boolean;
-  }>();
-
+  const options = program.opts<{ config?: boolean }>();
   const cwd = process.cwd();
 
   // Step 1: Check for Next.js version
@@ -52,58 +45,14 @@ export async function run(): Promise<void> {
   // Step 2: Check existing installation
   const existingInstall = detectExistingInstallation(cwd);
   const skillVersion = getOwnPackageVersion();
+  const installedAgents = getInstalledAgents(cwd);
+  const detectedAgents = detectInstalledAgents(cwd);
 
-  if (existingInstall.installed && existingInstall.meta) {
-    const updateCheck = needsUpdate(
-      existingInstall.meta,
-      nextjsResult.version,
-      skillVersion
-    );
-
-    if (!updateCheck.needsUpdate && !options.force && !options.sync) {
-      console.log(
-        chalk.green(
-          `\n✅ Skill already installed and up to date (v${existingInstall.meta.libVersion})`
-        )
-      );
-      console.log(
-        chalk.gray(
-          `   Installed for: ${existingInstall.meta.agents.map((a) => AGENTS[a].name).join(", ")}`
-        )
-      );
-      console.log(
-        chalk.gray(`   Use --force to reinstall or --sync to update\n`)
-      );
-      return;
-    }
-
-    if (updateCheck.needsUpdate) {
-      console.log(chalk.yellow(`\n⚠️  ${updateCheck.reason}`));
-    }
-  }
-
-  // Step 3: Detect or prompt for agents
   let selectedAgents: AgentId[];
+  let agentsToRemove: AgentId[] = [];
 
-  if (options.agent && options.agent.length > 0) {
-    // Validate provided agents
-    const invalidAgents = options.agent.filter(
-      (a) => !AGENT_IDS.includes(a as AgentId)
-    );
-    if (invalidAgents.length > 0) {
-      console.error(
-        chalk.red(`❌ Invalid agent(s): ${invalidAgents.join(", ")}`)
-      );
-      console.error(
-        chalk.gray(`   Valid agents: ${AGENT_IDS.join(", ")}`)
-      );
-      process.exit(1);
-    }
-    selectedAgents = options.agent as AgentId[];
-  } else {
-    // Auto-detect and prompt
-    const detectedAgents = detectInstalledAgents(cwd);
-
+  // Helper to show agent selection prompt
+  async function promptForAgents(preSelected: AgentId[]): Promise<AgentId[] | null> {
     console.log(chalk.cyan("\n🔍 Select AI agents to install for:\n"));
 
     const response = await prompts({
@@ -113,18 +62,100 @@ export async function run(): Promise<void> {
       choices: AGENT_IDS.map((id) => ({
         title: AGENTS[id].name,
         value: id,
-        selected: detectedAgents.includes(id),
+        selected: preSelected.includes(id),
       })),
-      min: 1,
       hint: "- Space to select. Return to submit",
     });
 
-    if (!response.agents || response.agents.length === 0) {
+    if (!response.agents) {
+      return null;
+    }
+    return response.agents as AgentId[];
+  }
+
+  if (existingInstall.installed && existingInstall.meta) {
+    // Skill is installed
+    const updateCheck = needsUpdate(
+      existingInstall.meta,
+      nextjsResult.version,
+      skillVersion
+    );
+
+    if (options.config) {
+      // User wants to modify agent selection
+      const newSelection = await promptForAgents(installedAgents);
+      if (!newSelection) {
+        console.log(chalk.yellow("\n⚠️  Cancelled. Exiting.\n"));
+        return;
+      }
+
+      if (newSelection.length === 0) {
+        // Uninstall from all agents
+        uninstallSkill(cwd, installedAgents);
+        const removedNames = installedAgents.map((a) => AGENTS[a].name);
+        console.log(
+          chalk.yellow(`\n🗑️  Uninstalled from: ${removedNames.join(", ")}\n`)
+        );
+        return;
+      }
+
+      selectedAgents = newSelection;
+      // Find agents to remove (were installed but now deselected)
+      agentsToRemove = installedAgents.filter((a) => !newSelection.includes(a));
+    } else if (!updateCheck.needsUpdate) {
+      // Up to date - show status and hint
+      const installedNames = installedAgents.map((a) => AGENTS[a].name);
+      const otherAgents = AGENT_IDS.filter((a) => !installedAgents.includes(a));
+      const otherNames = otherAgents.map((a) => AGENTS[a].name);
+
+      console.log(
+        chalk.green(
+          `\n✅ Skill already installed and up to date (v${existingInstall.meta.libVersion})`
+        )
+      );
+      console.log(chalk.gray(`   Installed for: ${installedNames.join(", ")}`));
+      if (otherNames.length > 0) {
+        console.log(
+          chalk.gray(`   Also supports: ${otherNames.join(", ")}`)
+        );
+        console.log(
+          chalk.gray(`   Use --config to add or remove\n`)
+        );
+      } else {
+        console.log("");
+      }
+      return;
+    } else {
+      // Needs update - auto-update for same agents
+      console.log(chalk.yellow(`\n⚠️  ${updateCheck.reason}`));
+      selectedAgents = installedAgents;
+    }
+  } else {
+    // First-time install - prompt for agents
+    const newSelection = await promptForAgents(detectedAgents);
+    if (!newSelection) {
+      console.log(chalk.yellow("\n⚠️  Cancelled. Exiting.\n"));
+      return;
+    }
+
+    if (newSelection.length === 0) {
       console.log(chalk.yellow("\n⚠️  No agents selected. Exiting.\n"));
       return;
     }
 
-    selectedAgents = response.agents as AgentId[];
+    selectedAgents = newSelection;
+  }
+
+  // Remove skill from deselected agents
+  if (agentsToRemove.length > 0) {
+    for (const agentId of agentsToRemove) {
+      removeSkillFromAgent(cwd, agentId);
+    }
+    console.log(
+      chalk.yellow(
+        `\n🗑️  Removed from: ${agentsToRemove.map((a) => AGENTS[a].name).join(", ")}`
+      )
+    );
   }
 
   console.log(
