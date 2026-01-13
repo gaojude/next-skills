@@ -1,6 +1,9 @@
 {
-  "name": "next-skills",
+  "name": "@judegao/next-skills",
   "version": "0.0.1",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "CLI to install and manage Agent Skills for Claude Code, Gemini CLI, Cursor, and Codex",
   "type": "module",
   "main": "./dist/index.js",
