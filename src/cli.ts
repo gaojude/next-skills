@@ -40,7 +40,16 @@ export async function run(): Promise<void> {
     process.exit(1);
   }
 
-  console.log(chalk.green(`   Found Next.js v${nextjsResult.version}`));
+  if (nextjsResult.fromWorkspace) {
+    const { type, packageCount } = nextjsResult.fromWorkspace;
+    console.log(
+      chalk.green(
+        `   Found Next.js v${nextjsResult.version} in ${type} workspace (${packageCount} app${packageCount > 1 ? "s" : ""})`
+      )
+    );
+  } else {
+    console.log(chalk.green(`   Found Next.js v${nextjsResult.version}`));
+  }
 
   // Step 2: Check existing installation
   const existingInstall = detectExistingInstallation(cwd);
