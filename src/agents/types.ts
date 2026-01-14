@@ -7,4 +7,4 @@ export interface Agent {
   skillsDir: string;
 }
 
-export type AgentId = "claude" | "gemini" | "cursor" | "codex";
+export type AgentId = "claude" | "gemini" | "antigravity" | "cursor" | "codex";

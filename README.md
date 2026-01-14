@@ -5,9 +5,12 @@ Next.js Agent Skill Installer
 ## Supported Agents
 
 - Claude Code / OpenCode
-- Gemini CLI (Experimental)
-- Cursor (Experimental)
+- Gemini CLI
+- Antigravity
+- Cursor
 - Codex
+
+> Note: Some agents may only support skills in their experimental versions (e.g., Gemini CLI, Cursor).
 
 ## Usage
 

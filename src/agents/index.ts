@@ -13,6 +13,12 @@ export const AGENTS: Record<AgentId, Agent> = {
     detectDir: ".gemini",
     skillsDir: ".gemini/skills",
   },
+  antigravity: {
+    id: "antigravity",
+    name: "Antigravity",
+    detectDir: ".agent",
+    skillsDir: ".agent/skills",
+  },
   cursor: {
     id: "cursor",
     name: "Cursor",
