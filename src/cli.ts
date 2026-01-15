@@ -15,6 +15,7 @@ import {
   removeSkillFromAgent,
 } from "./installer/index.js";
 import type { AgentId } from "./agents/types.js";
+import { runPullCommand } from "./commands/pull.js";
 
 export async function run(): Promise<void> {
   const program = new Command();
@@ -24,20 +25,39 @@ export async function run(): Promise<void> {
     .description(
       "Install Next.js documentation as an Agent Skill for AI coding agents"
     )
-    .version(getOwnPackageVersion())
+    .version(getOwnPackageVersion());
+
+  // Pull subcommand - lazily fetches docs to /tmp for the current session
+  program
+    .command("pull")
+    .description("Pull Next.js documentation to a temporary directory for this session")
+    .option("--nextjs-version <version>", "Override Next.js version")
+    .action(async (options: { nextjsVersion?: string }) => {
+      await runPullCommand(options.nextjsVersion);
+    });
+
+  // Install subcommand (also the default when no command is given)
+  program
+    .command("install", { isDefault: true })
+    .description("Install the Next.js skill for AI coding agents")
     .option("-c, --config", "Modify agent selection")
     .option("--agent <id>", "Install for a single agent (non-interactive)")
     .option(
       "--agents <ids>",
       "Install for multiple agents (comma-separated, or 'all') (non-interactive)"
     )
-    .parse();
+    .action(async (options: { config?: boolean; agent?: string; agents?: string }) => {
+      await runInstall(options);
+    });
 
-  const options = program.opts<{
-    config?: boolean;
-    agent?: string;
-    agents?: string;
-  }>();
+  await program.parseAsync();
+}
+
+async function runInstall(options: {
+  config?: boolean;
+  agent?: string;
+  agents?: string;
+}): Promise<void> {
 
   // Parse --agent or --agents flags for non-interactive mode
   function parseAgentFlags(): AgentId[] | null {
@@ -226,7 +246,7 @@ export async function run(): Promise<void> {
   );
 
   // Step 4: Generate and install
-  const spinner = ora("Cloning Next.js documentation...").start();
+  const spinner = ora("Installing skill...").start();
 
   try {
     const result = await installSkill({
@@ -240,7 +260,7 @@ export async function run(): Promise<void> {
       process.exit(1);
     }
 
-    spinner.succeed(chalk.green("Documentation installed"));
+    spinner.succeed(chalk.green("Skill installed"));
 
     // Report results
     console.log(chalk.cyan("\n📋 Installation Summary:\n"));
@@ -263,7 +283,8 @@ export async function run(): Promise<void> {
       }
     }
 
-    console.log(chalk.green("\n✨ Done! The Next.js skill is now available.\n"));
+    console.log(chalk.green("\n✨ Done! The Next.js skill is now available."));
+    console.log(chalk.gray("   Agents will use `npx @judegao/next-skills pull` to load documentation.\n"));
   } catch (error) {
     spinner.fail(
       chalk.red(
