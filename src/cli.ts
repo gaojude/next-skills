@@ -26,9 +26,52 @@ export async function run(): Promise<void> {
     )
     .version(getOwnPackageVersion())
     .option("-c, --config", "Modify agent selection")
+    .option("--agent <id>", "Install for a single agent (non-interactive)")
+    .option(
+      "--agents <ids>",
+      "Install for multiple agents (comma-separated, or 'all') (non-interactive)"
+    )
     .parse();
 
-  const options = program.opts<{ config?: boolean }>();
+  const options = program.opts<{
+    config?: boolean;
+    agent?: string;
+    agents?: string;
+  }>();
+
+  // Parse --agent or --agents flags for non-interactive mode
+  function parseAgentFlags(): AgentId[] | null {
+    if (options.agent) {
+      const id = options.agent.toLowerCase();
+      if (!AGENT_IDS.includes(id as AgentId)) {
+        console.error(
+          chalk.red(`❌ Unknown agent: "${options.agent}". Valid agents: ${AGENT_IDS.join(", ")}`)
+        );
+        process.exit(1);
+      }
+      return [id as AgentId];
+    }
+
+    if (options.agents) {
+      if (options.agents.toLowerCase() === "all") {
+        return [...AGENT_IDS];
+      }
+
+      const ids = options.agents.split(",").map((s) => s.trim().toLowerCase());
+      const invalid = ids.filter((id) => !AGENT_IDS.includes(id as AgentId));
+      if (invalid.length > 0) {
+        console.error(
+          chalk.red(`❌ Unknown agent(s): ${invalid.join(", ")}. Valid agents: ${AGENT_IDS.join(", ")}`)
+        );
+        process.exit(1);
+      }
+      return ids as AgentId[];
+    }
+
+    return null;
+  }
+
+  const cliAgents = parseAgentFlags();
   const cwd = process.cwd();
 
   // Step 1: Check for Next.js version
@@ -82,7 +125,16 @@ export async function run(): Promise<void> {
     return response.agents as AgentId[];
   }
 
-  if (existingInstall.installed && existingInstall.meta) {
+  if (cliAgents) {
+    // Non-interactive mode: use CLI-specified agents
+    if (cliAgents.length === 0) {
+      console.log(chalk.yellow("\n⚠️  No agents specified. Exiting.\n"));
+      return;
+    }
+    selectedAgents = cliAgents;
+    // Find agents to remove (were installed but now deselected)
+    agentsToRemove = installedAgents.filter((a) => !cliAgents.includes(a));
+  } else if (existingInstall.installed && existingInstall.meta) {
     // Skill is installed
     const updateCheck = needsUpdate(
       existingInstall.meta,
