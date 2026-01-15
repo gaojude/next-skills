@@ -16,6 +16,7 @@ import {
 } from "./installer/index.js";
 import type { AgentId } from "./agents/types.js";
 import { runPullCommand } from "./commands/pull.js";
+import { runExperimentalClaudeMd } from "./commands/experimental-claude-md.js";
 
 export async function run(): Promise<void> {
   const program = new Command();
@@ -25,7 +26,21 @@ export async function run(): Promise<void> {
     .description(
       "Install Next.js documentation as an Agent Skill for AI coding agents"
     )
-    .version(getOwnPackageVersion());
+    .version(getOwnPackageVersion())
+    .option(
+      "--experimental-claude-md",
+      "Inject documentation index directly into CLAUDE.md"
+    )
+    .option("--nextjs-version <version>", "Override Next.js version");
+
+  // Handle top-level flags before commands
+  program.hook("preAction", async (thisCommand) => {
+    const opts = thisCommand.opts();
+    if (opts.experimentalClaudeMd) {
+      await runExperimentalClaudeMd({ nextjsVersion: opts.nextjsVersion });
+      process.exit(0);
+    }
+  });
 
   // Pull subcommand - lazily fetches docs to /tmp for the current session
   program
