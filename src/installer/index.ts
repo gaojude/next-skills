@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, writeFileSync, lstatSync, unlinkSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { generateSkill } from "../generator/index.js";
+import { generateSkillWithClone } from "../generator/index.js";
 import { writeSkillMeta, removeSkillMeta, getInstalledSkillNames, type SkillEntry } from "../version/meta.js";
 import {
   sortAgentsByDir,
@@ -31,9 +31,6 @@ export interface InstallResult {
 /**
  * Install the Next.js documentation skill.
  *
- * Only installs SKILL.md with instructions to use `pull` command.
- * Docs are lazy-loaded via `npx @judegao/next-skills pull`.
- *
  * Files are stored in the alphabetically-first agent's directory.
  * Other agents get symlinks to that location.
  */
@@ -48,9 +45,11 @@ export async function installSkill(
   const secondaryAgents = sortedAgents.slice(1);
   const primaryPath = getAgentSkillPath(cwd, primaryAgent);
   const skillsDir = dirname(primaryPath);
+  const docsDir = join(primaryPath, "docs");
 
   try {
     // Clean up existing skill folders from primary location
+    // Secondary agents just have symlinks that will be recreated
     const installedSkills = getInstalledSkillNames(skillsDir);
     for (const skillName of installedSkills) {
       const skillPath = join(skillsDir, skillName);
@@ -73,8 +72,11 @@ export async function installSkill(
     // Create primary skill directory
     mkdirSync(primaryPath, { recursive: true });
 
-    // Generate SKILL.md (no docs - they're lazy-loaded via `pull`)
-    const { content, libVersion, skillVersion } = generateSkill(nextjsVersion);
+    // Generate skill by cloning docs (this populates docs/)
+    const { content, libVersion, skillVersion } = await generateSkillWithClone(
+      nextjsVersion,
+      docsDir
+    );
 
     // Write SKILL.md
     writeFileSync(join(primaryPath, "SKILL.md"), content, "utf-8");

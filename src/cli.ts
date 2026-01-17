@@ -298,8 +298,7 @@ async function runInstall(options: {
       }
     }
 
-    console.log(chalk.green("\n✨ Done! The Next.js skill is now available."));
-    console.log(chalk.gray("   Agents will use `npx @judegao/next-skills pull` to load documentation.\n"));
+    console.log(chalk.green("\n✨ Done! The Next.js skill is now available.\n"));
   } catch (error) {
     spinner.fail(
       chalk.red(

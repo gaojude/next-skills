@@ -1,14 +1,16 @@
+import type { DocSection } from "./git.js";
+
 export interface SkillTemplateData {
   libVersion: string;
   skillVersion: string;
+  sections: DocSection[];
 }
 
 /**
- * Generate the SKILL.md content with lazy-loading instructions.
- * Docs are NOT bundled - agent must run `pull` command to fetch them.
+ * Generate the SKILL.md content from the docs tree.
  */
 export function generateSkillMd(data: SkillTemplateData): string {
-  const { libVersion } = data;
+  const { libVersion, skillVersion, sections } = data;
 
   const lines: string[] = [];
 
@@ -16,46 +18,64 @@ export function generateSkillMd(data: SkillTemplateData): string {
   lines.push("---");
   lines.push("name: nextjs-doc");
   lines.push(
-    `description: "PRIORITY: Use this skill FIRST for ANY task involving Next.js concepts, terminology, or features. Run the pull command below to load documentation before exploring code or making assumptions."`
+    `description: "PRIORITY: Use this skill FIRST for ANY task involving Next.js concepts, terminology, or features—before exploring code, before web search, before making assumptions. This includes: understanding what a Next.js feature/API is, auditing or reviewing Next.js patterns, implementing Next.js features, debugging Next.js behavior."`
   );
   lines.push("---");
   lines.push("");
 
-  // Critical instruction
-  lines.push("# Next.js Documentation Skill");
-  lines.push("");
-  lines.push(`This skill provides access to Next.js v${libVersion} documentation.`);
-  lines.push("");
-  lines.push("## IMPORTANT: Load Documentation First");
-  lines.push("");
-  lines.push("**Before doing ANY Next.js task, you MUST run this command:**");
-  lines.push("");
-  lines.push("```bash");
-  lines.push("npx @judegao/next-skills pull");
-  lines.push("```");
-  lines.push("");
-  lines.push("This command will:");
-  lines.push("1. Download the latest Next.js documentation");
-  lines.push("2. Output a temporary directory path (e.g., `/tmp/next-skills-abc123/`)");
-  lines.push("3. You can then search and read files in that directory");
-  lines.push("");
-  lines.push("## After Running Pull");
-  lines.push("");
-  lines.push("Once you have the documentation path, you can:");
-  lines.push("- Search for topics: `grep -r 'caching' /tmp/next-skills-xxx/`");
-  lines.push("- Read specific files: `cat /tmp/next-skills-xxx/01-app-router/...`");
-  lines.push("- Browse the structure: `ls -la /tmp/next-skills-xxx/`");
-  lines.push("");
-  lines.push("## When to Use This Skill");
+  // Strong instruction
+  lines.push(
+    `Always consult this documentation to understand current Next.js APIs and terminology BEFORE exploring or modifying code. Your training data may be outdated—this documentation is the source of truth for Next.js v${libVersion}.`
+  );
   lines.push("");
   lines.push("Use this skill FIRST when:");
-  lines.push('- Understanding what a Next.js feature/API is (e.g., "what is the App Router?")');
-  lines.push("- Implementing Next.js features (routing, data fetching, caching, etc.)");
-  lines.push("- Debugging Next.js behavior");
+  lines.push(
+    '- Understanding what a Next.js feature/API is (e.g., "what are cache components?")'
+  );
   lines.push("- Auditing or reviewing Next.js patterns in a codebase");
-  lines.push("");
-  lines.push("Your training data may be outdated—this documentation is the source of truth.");
+  lines.push("- Implementing Next.js features");
+  lines.push("- Debugging Next.js behavior");
   lines.push("");
 
+  // Documentation index
+  lines.push("## Documentation Index");
+  lines.push("");
+
+  // Generate section content
+  for (const section of sections) {
+    lines.push(...generateSectionContent(section, 3));
+  }
+
   return lines.join("\n");
+}
+
+/**
+ * Generate markdown content for a section and its subsections.
+ */
+function generateSectionContent(
+  section: DocSection,
+  headingLevel: number
+): string[] {
+  const lines: string[] = [];
+  const heading = "#".repeat(headingLevel);
+
+  lines.push(`${heading} ${section.title}`);
+  lines.push("");
+
+  // List files in this section
+  for (const file of section.files) {
+    lines.push(`- [${file.title}](${file.localPath})`);
+  }
+
+  if (section.files.length > 0) {
+    lines.push("");
+  }
+
+  // Recurse into subsections (limit depth to avoid too many heading levels)
+  const nextLevel = Math.min(headingLevel + 1, 6);
+  for (const subsection of section.subsections) {
+    lines.push(...generateSectionContent(subsection, nextLevel));
+  }
+
+  return lines;
 }
