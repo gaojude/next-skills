@@ -17,6 +17,7 @@ import {
 import type { AgentId } from "./agents/types.js";
 import { runPullCommand } from "./commands/pull.js";
 import { runExperimentalClaudeMd } from "./commands/experimental-claude-md.js";
+import { writeClaudeMdNudge } from "./generator/claude-md.js";
 
 export async function run(): Promise<void> {
   const program = new Command();
@@ -31,14 +32,22 @@ export async function run(): Promise<void> {
       "--experimental-claude-md",
       "Inject documentation index directly into CLAUDE.md (stores docs in .next-docs)"
     )
+    .option(
+      "--experimental-claude-md-nudge",
+      "Generate CLAUDE.md with exploration-first guidance alongside skill installation"
+    )
     .option("--nextjs-version <version>", "Override Next.js version");
 
   // Handle top-level flags before commands
-  program.hook("preAction", async (thisCommand) => {
+  program.hook("preAction", async (thisCommand, actionCommand) => {
     const opts = thisCommand.opts();
     if (opts.experimentalClaudeMd) {
       await runExperimentalClaudeMd({ nextjsVersion: opts.nextjsVersion });
       process.exit(0);
+    }
+    // Pass experimentalClaudeMdNudge to action command options
+    if (opts.experimentalClaudeMdNudge) {
+      actionCommand.setOptionValue("experimentalClaudeMdNudge", true);
     }
   });
 
@@ -61,7 +70,7 @@ export async function run(): Promise<void> {
       "--agents <ids>",
       "Install for multiple agents (comma-separated, or 'all') (non-interactive)"
     )
-    .action(async (options: { config?: boolean; agent?: string; agents?: string }) => {
+    .action(async (options: { config?: boolean; agent?: string; agents?: string; experimentalClaudeMdNudge?: boolean }) => {
       await runInstall(options);
     });
 
@@ -72,6 +81,7 @@ async function runInstall(options: {
   config?: boolean;
   agent?: string;
   agents?: string;
+  experimentalClaudeMdNudge?: boolean;
 }): Promise<void> {
 
   // Parse --agent or --agents flags for non-interactive mode
@@ -296,6 +306,20 @@ async function runInstall(options: {
       } else {
         console.log(chalk.red(`   ✗ ${agent.name}: ${agentResult.error}`));
       }
+    }
+
+    // Generate CLAUDE.md nudge if requested and Claude is selected
+    if (options.experimentalClaudeMdNudge && selectedAgents.includes("claude")) {
+      const nudgeResult = writeClaudeMdNudge(cwd);
+      console.log("");
+      if (nudgeResult.created) {
+        console.log(chalk.green(`   ✓ Created CLAUDE.md with exploration-first guidance`));
+      } else if (nudgeResult.updated) {
+        console.log(chalk.green(`   ✓ Updated CLAUDE.md with exploration-first guidance`));
+      } else {
+        console.log(chalk.gray(`   ℹ CLAUDE.md already has exploration guidance`));
+      }
+      console.log(chalk.gray(`     ${nudgeResult.path}`));
     }
 
     console.log(chalk.green("\n✨ Done! The Next.js skill is now available.\n"));
