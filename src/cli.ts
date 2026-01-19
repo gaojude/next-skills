@@ -29,7 +29,7 @@ export async function run(): Promise<void> {
     .version(getOwnPackageVersion())
     .option(
       "--experimental-claude-md",
-      "Inject documentation index directly into CLAUDE.md"
+      "Inject documentation index directly into CLAUDE.md (stores docs in .next-docs)"
     )
     .option("--nextjs-version <version>", "Override Next.js version");
 

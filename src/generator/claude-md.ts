@@ -4,14 +4,15 @@ export interface ClaudeMdIndexData {
   libVersion: string;
   docsPath: string;
   sections: DocSection[];
+  githubDocsUrl?: string;
 }
 
 /**
  * Generate the documentation index content for CLAUDE.md injection.
- * This creates a hierarchical index with references to the pulled docs in /tmp.
+ * This creates a hierarchical index with references to the pulled docs.
  */
 export function generateClaudeMdIndex(data: ClaudeMdIndexData): string {
-  const { libVersion, docsPath, sections } = data;
+  const { libVersion, docsPath, sections, githubDocsUrl } = data;
 
   const lines: string[] = [];
 
@@ -21,6 +22,9 @@ export function generateClaudeMdIndex(data: ClaudeMdIndexData): string {
   lines.push(`> This is the official Next.js v${libVersion} documentation. Use this as your source of truth for ANY Next.js-related work.`);
   lines.push("");
   lines.push(`> Documentation location: \`${docsPath}\``);
+  if (githubDocsUrl) {
+    lines.push(`> GitHub source (versioned link): ${githubDocsUrl}`);
+  }
   lines.push(">");
   lines.push("> **If the documentation files are missing**, run: `npx @judegao/next-skills --experimental-claude-md`");
   lines.push("");

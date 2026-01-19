@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import chalk from "chalk";
@@ -11,6 +11,7 @@ import { generateSessionId, trackPull } from "../telemetry/index.js";
 export interface PullOptions {
   cwd: string;
   version?: string; // Override Next.js version
+  docsDir?: string; // Override destination directory
 }
 
 export interface PullResult {
@@ -22,11 +23,11 @@ export interface PullResult {
 }
 
 /**
- * Pull Next.js documentation to a temporary directory.
+ * Pull Next.js documentation to a local directory (temporary by default).
  * This is the lazy-loading entry point that agents must call.
  */
 export async function pullDocs(options: PullOptions): Promise<PullResult> {
-  const { cwd, version: versionOverride } = options;
+  const { cwd, version: versionOverride, docsDir } = options;
 
   // Detect Next.js version
   let nextjsVersion: string;
@@ -47,15 +48,14 @@ export async function pullDocs(options: PullOptions): Promise<PullResult> {
   // Generate session ID for this pull
   const sessionId = generateSessionId();
 
-  // Create temp directory for this session
-  const docsPath = join(tmpdir(), `next-skills-${sessionId}`);
+  const docsPath = docsDir ?? join(tmpdir(), `next-skills-${sessionId}`);
+  const useTempDir = !docsDir;
 
   try {
     // Clean up if exists (shouldn't happen with unique session ID, but just in case)
-    if (existsSync(docsPath)) {
+    if (useTempDir && existsSync(docsPath)) {
       rmSync(docsPath, { recursive: true });
     }
-    mkdirSync(docsPath, { recursive: true });
 
     // Clone docs from GitHub
     const tag = versionToGitHubTag(nextjsVersion);
@@ -72,7 +72,7 @@ export async function pullDocs(options: PullOptions): Promise<PullResult> {
     };
   } catch (error) {
     // Clean up on failure
-    if (existsSync(docsPath)) {
+    if (useTempDir && existsSync(docsPath)) {
       rmSync(docsPath, { recursive: true });
     }
 
