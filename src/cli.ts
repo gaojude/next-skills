@@ -15,7 +15,6 @@ import {
   removeSkillFromAgent,
 } from "./installer/index.js";
 import type { AgentId } from "./agents/types.js";
-import { runPullCommand } from "./commands/pull.js";
 import { runExperimentalClaudeMd } from "./commands/experimental-claude-md.js";
 import { writeClaudeMdNudge } from "./generator/claude-md.js";
 
@@ -50,15 +49,6 @@ export async function run(): Promise<void> {
       actionCommand.setOptionValue("experimentalClaudeMdNudge", true);
     }
   });
-
-  // Pull subcommand - lazily fetches docs to /tmp for the current session
-  program
-    .command("pull")
-    .description("Pull Next.js documentation to a temporary directory for this session")
-    .option("--nextjs-version <version>", "Override Next.js version")
-    .action(async (options: { nextjsVersion?: string }) => {
-      await runPullCommand(options.nextjsVersion);
-    });
 
   // Install subcommand (also the default when no command is given)
   program

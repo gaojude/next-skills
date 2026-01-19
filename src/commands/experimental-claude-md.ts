@@ -2,7 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import chalk from "chalk";
 import ora from "ora";
-import { pullDocs } from "./pull.js";
+import { pullDocs } from "../generator/pull.js";
 import { collectDocFiles, buildDocTree } from "../generator/git.js";
 import {
   generateClaudeMdIndex,

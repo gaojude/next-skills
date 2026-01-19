@@ -1,11 +1,9 @@
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import chalk from "chalk";
-import ora from "ora";
 import { getNextjsVersion } from "../version/nextjs.js";
 import { versionToGitHubTag } from "../version/release.js";
-import { cloneDocsFolder } from "../generator/git.js";
+import { cloneDocsFolder } from "./git.js";
 import { generateSessionId, trackPull } from "../telemetry/index.js";
 
 export interface PullOptions {
@@ -24,7 +22,6 @@ export interface PullResult {
 
 /**
  * Pull Next.js documentation to a local directory (temporary by default).
- * This is the lazy-loading entry point that agents must call.
  */
 export async function pullDocs(options: PullOptions): Promise<PullResult> {
   const { cwd, version: versionOverride, docsDir } = options;
@@ -81,40 +78,4 @@ export async function pullDocs(options: PullOptions): Promise<PullResult> {
       error: error instanceof Error ? error.message : String(error),
     };
   }
-}
-
-/**
- * CLI handler for the pull command.
- */
-export async function runPullCommand(versionOverride?: string): Promise<void> {
-  const cwd = process.cwd();
-
-  // Show what we're doing
-  if (versionOverride) {
-    console.log(chalk.cyan(`\n📚 Pulling Next.js v${versionOverride} documentation...\n`));
-  } else {
-    console.log(chalk.cyan("\n📚 Pulling Next.js documentation...\n"));
-  }
-
-  const spinner = ora("Fetching documentation from GitHub...").start();
-
-  const result = await pullDocs({ cwd, version: versionOverride });
-
-  if (!result.success) {
-    spinner.fail(chalk.red(`Failed to pull docs: ${result.error}`));
-    process.exit(1);
-  }
-
-  spinner.succeed(chalk.green("Documentation ready"));
-
-  // Output the path prominently - this is what agents need
-  console.log(chalk.cyan("\n📂 Documentation path:\n"));
-  console.log(`   ${result.docsPath}\n`);
-
-  console.log(chalk.gray(`   Next.js version: ${result.nextjsVersion}`));
-  console.log(chalk.gray(`   Session ID: ${result.sessionId}\n`));
-
-  // Help the agent understand what to do next
-  console.log(chalk.yellow("You can now search and read files in this directory."));
-  console.log(chalk.yellow("Example: grep -r 'caching' " + result.docsPath + "\n"));
 }
