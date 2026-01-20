@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, cpSync, rmSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, cpSync, rmSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -11,11 +11,10 @@ export async function cloneDocsFolder(
   tag: string,
   destDir: string
 ): Promise<void> {
-  // Create a temp directory for the clone
-  const tempDir = join(tmpdir(), `next-skills-${Date.now()}`);
+  // Create a temp directory for the clone (mkdtempSync ensures uniqueness atomically)
+  const tempDir = mkdtempSync(join(tmpdir(), "next-skills-"));
 
   try {
-    mkdirSync(tempDir, { recursive: true });
 
     // Sparse clone with only docs folder
     try {
