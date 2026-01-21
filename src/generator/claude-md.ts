@@ -18,8 +18,16 @@ export function generateClaudeMdIndex(data: ClaudeMdIndexData): string {
 
   const lines: string[] = [];
 
+  // Preamble to encourage Claude to actually read the docs
+  lines.push("# Next.js Documentation");
+  lines.push("");
+  lines.push("Your training data may be outdated. These docs are version-matched to this project.");
+  lines.push("");
+  lines.push("**BEFORE writing any Next.js code:** Search the docs index below for relevant topics, then READ those .mdx files. APIs and configuration have changed.");
+  lines.push("");
+
   // Header
-  lines.push("## Next.js Documentation Index");
+  lines.push("## Documentation Index");
   lines.push("");
   lines.push("> **If the documentation files are missing**, run: `npx @judegao/next-skills --experimental-claude-md`");
   lines.push("");
