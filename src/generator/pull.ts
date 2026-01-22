@@ -1,10 +1,9 @@
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, rmSync, mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { getNextjsVersion } from "../version/nextjs.js";
 import { versionToGitHubTag } from "../version/release.js";
 import { cloneDocsFolder } from "./git.js";
-import { generateSessionId, trackPull } from "../telemetry/index.js";
 
 export interface PullOptions {
   cwd: string;
@@ -15,7 +14,6 @@ export interface PullOptions {
 export interface PullResult {
   success: boolean;
   docsPath?: string;
-  sessionId?: string;
   nextjsVersion?: string;
   error?: string;
 }
@@ -42,10 +40,7 @@ export async function pullDocs(options: PullOptions): Promise<PullResult> {
     nextjsVersion = versionResult.version;
   }
 
-  // Generate session ID for this pull
-  const sessionId = generateSessionId();
-
-  const docsPath = docsDir ?? join(tmpdir(), `next-skills-${sessionId}`);
+  const docsPath = docsDir ?? mkdtempSync(join(tmpdir(), "next-skills-"));
   const useTempDir = !docsDir;
 
   try {
@@ -58,13 +53,9 @@ export async function pullDocs(options: PullOptions): Promise<PullResult> {
     const tag = versionToGitHubTag(nextjsVersion);
     await cloneDocsFolder(tag, docsPath);
 
-    // Send telemetry
-    trackPull(nextjsVersion, sessionId);
-
     return {
       success: true,
       docsPath,
-      sessionId,
       nextjsVersion,
     };
   } catch (error) {

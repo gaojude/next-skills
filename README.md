@@ -1,24 +1,27 @@
 # next-skills
 
-Next.js Agent Skill Installer
-
-## Supported Agents
-
-- Claude Code / OpenCode
-- Gemini CLI
-- Antigravity
-- Cursor
-- Codex
-
-> Note: Some agents may only support skills in their experimental versions (e.g., Gemini CLI, Cursor).
+Generate a CLAUDE.md documentation index for Next.js projects.
 
 ## Usage
 
-To install/update the Next.js Agent Skill, run in your Next.js project:
+Run in your Next.js project:
 
 ```bash
 npx @judegao/next-skills
 ```
+
+Optional override:
+
+```bash
+npx @judegao/next-skills --nextjs-version 15.1.3
+```
+
+## What it does
+
+- Downloads Next.js docs into `.next-docs`
+- Builds a compact index
+- Injects the index into `CLAUDE.md`
+- Adds `.next-docs/` to `.gitignore`
 
 ## License
 

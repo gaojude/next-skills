@@ -52,7 +52,7 @@ function ensureGitignoreEntry(cwd: string): GitignoreStatus {
 }
 
 /**
- * Run the experimental CLAUDE.md mode.
+ * Generate the CLAUDE.md documentation index.
  * This pulls docs to .next-docs and injects a documentation index into CLAUDE.md.
  */
 export async function runExperimentalClaudeMd(
@@ -64,7 +64,7 @@ export async function runExperimentalClaudeMd(
   const docsLinkPath = `./${DOCS_DIR_NAME}`;
 
   console.log(
-    chalk.cyan("\n🧪 Running experimental CLAUDE.md mode...\n")
+    chalk.cyan("\n📚 Generating CLAUDE.md documentation index...\n")
   );
 
   // Step 1: Pull docs to .next-docs
@@ -93,7 +93,6 @@ export async function runExperimentalClaudeMd(
 
   // Step 3: Generate the index content
   const indexContent = generateClaudeMdIndex({
-    libVersion: pullResult.nextjsVersion!,
     docsPath: docsLinkPath,
     files: docFiles,
     githubDocsUrl,

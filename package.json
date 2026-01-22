@@ -4,7 +4,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "description": "CLI to install and manage Agent Skills for Claude Code, Gemini CLI, Cursor, and Codex",
+  "description": "Generate a CLAUDE.md documentation index for Next.js projects",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
@@ -17,12 +17,8 @@
   },
   "keywords": [
     "nextjs",
-    "agent-skills",
     "claude",
-    "gemini",
-    "copilot",
-    "cursor",
-    "ai",
+    "claude-md",
     "documentation"
   ],
   "author": "",
@@ -30,12 +26,10 @@
   "dependencies": {
     "chalk": "^5.3.0",
     "commander": "^12.1.0",
-    "ora": "^8.1.0",
-    "prompts": "^2.4.2"
+    "ora": "^8.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
-    "@types/prompts": "^2.4.9",
     "typescript": "^5.7.0"
   },
   "engines": {
