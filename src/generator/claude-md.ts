@@ -1,20 +1,19 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { DocSection } from "./git.js";
 
 export interface ClaudeMdIndexData {
   libVersion: string;
   docsPath: string;
-  sections: DocSection[];
+  files: { relativePath: string; title: string }[];
   githubDocsUrl?: string;
 }
 
 /**
  * Generate the documentation index content for CLAUDE.md injection.
- * This creates a hierarchical index with references to the pulled docs.
+ * This creates a compact, directory-grouped index for the pulled docs.
  */
 export function generateClaudeMdIndex(data: ClaudeMdIndexData): string {
-  const { libVersion, docsPath, sections, githubDocsUrl } = data;
+  const { docsPath, files, githubDocsUrl } = data;
 
   const lines: string[] = [];
 
@@ -27,50 +26,58 @@ export function generateClaudeMdIndex(data: ClaudeMdIndexData): string {
   lines.push("");
 
   // Header
-  lines.push("## Documentation Index");
+  lines.push("## Documentation Index (compact)");
   lines.push("");
+  lines.push(`Docs root: ${docsPath}`);
+  if (githubDocsUrl) {
+    lines.push(`GitHub docs: ${githubDocsUrl}`);
+  }
+  lines.push("Format: <dir/> followed by filenames (paths relative to docs root).");
+  lines.push("Tip: strip numeric prefixes and hyphens to read titles.");
   lines.push("> **If the documentation files are missing**, run: `npx @judegao/next-skills --experimental-claude-md`");
   lines.push("");
 
-  // Generate section content
-  for (const section of sections) {
-    lines.push(...generateSectionContent(section, docsPath, 3));
+  const groupedFiles = groupFilesByDirectory(files);
+  for (const group of groupedFiles) {
+    const dirLabel = group.dir === "." ? "(root)" : group.dir;
+    lines.push(`${dirLabel}/`);
+    for (const file of group.files) {
+      lines.push(`  ${file}`);
+    }
   }
 
   return lines.join("\n");
 }
 
 /**
- * Generate markdown content for a section and its subsections.
+ * Group doc files by their parent directory.
  */
-function generateSectionContent(
-  section: DocSection,
-  docsPath: string,
-  headingLevel: number
-): string[] {
-  const lines: string[] = [];
-  const heading = "#".repeat(headingLevel);
+function groupFilesByDirectory(
+  files: { relativePath: string }[]
+): { dir: string; files: string[] }[] {
+  const byDir = new Map<string, string[]>();
 
-  lines.push(`${heading} ${section.title}`);
-  lines.push("");
+  for (const file of files) {
+    const normalizedPath = file.relativePath.replace(/\\/g, "/");
+    const lastSlash = normalizedPath.lastIndexOf("/");
+    const dir = lastSlash === -1 ? "." : normalizedPath.slice(0, lastSlash);
+    const name =
+      lastSlash === -1
+        ? normalizedPath
+        : normalizedPath.slice(lastSlash + 1);
 
-  // List files in this section
-  for (const file of section.files) {
-    const fullPath = `${docsPath}/${file.relativePath}`;
-    lines.push(`- [${file.title}](${fullPath})`);
+    const existing = byDir.get(dir);
+    if (existing) {
+      existing.push(name);
+    } else {
+      byDir.set(dir, [name]);
+    }
   }
 
-  if (section.files.length > 0) {
-    lines.push("");
-  }
-
-  // Recurse into subsections (limit depth to avoid too many heading levels)
-  const nextLevel = Math.min(headingLevel + 1, 6);
-  for (const subsection of section.subsections) {
-    lines.push(...generateSectionContent(subsection, docsPath, nextLevel));
-  }
-
-  return lines;
+  return Array.from(byDir.entries()).map(([dir, files]) => ({
+    dir,
+    files,
+  }));
 }
 
 /**

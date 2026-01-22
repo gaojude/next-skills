@@ -3,7 +3,7 @@ import { join } from "node:path";
 import chalk from "chalk";
 import ora from "ora";
 import { pullDocs } from "../generator/pull.js";
-import { collectDocFiles, buildDocTree } from "../generator/git.js";
+import { collectDocFiles } from "../generator/git.js";
 import {
   generateClaudeMdIndex,
   injectIntoClaudeMd,
@@ -85,18 +85,17 @@ export async function runExperimentalClaudeMd(
   console.log(chalk.gray(`   Path: ${docsPath}`));
   console.log(chalk.gray(`   Version: ${pullResult.nextjsVersion}\n`));
 
-  // Step 2: Build documentation tree
+  // Step 2: Collect documentation files
   const indexSpinner = ora("Building documentation index...").start();
 
   const docFiles = collectDocFiles(docsPath);
-  const sections = buildDocTree(docFiles);
   const githubDocsUrl = `https://github.com/vercel/next.js/tree/${versionToGitHubTag(pullResult.nextjsVersion!)}/docs`;
 
   // Step 3: Generate the index content
   const indexContent = generateClaudeMdIndex({
     libVersion: pullResult.nextjsVersion!,
     docsPath: docsLinkPath,
-    sections,
+    files: docFiles,
     githubDocsUrl,
   });
 
