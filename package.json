@@ -4,7 +4,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "description": "Generate a CLAUDE.md documentation index for Next.js projects",
+  "description": "Generate a documentation index for Claude/Agents files in Next.js projects",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
