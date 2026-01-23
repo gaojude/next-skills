@@ -1,4 +1,4 @@
-# next-skills
+# next-agents-md
 
 Generate a documentation index for Claude/Agents files in Next.js projects.
 
@@ -7,20 +7,25 @@ Generate a documentation index for Claude/Agents files in Next.js projects.
 Run in your Next.js project:
 
 ```bash
-npx @judegao/next-skills
+npx @judegao/next-agents-md
 ```
 
-Optional override:
+This starts an interactive prompt that will:
+1. Detect your Next.js version (or let you enter one)
+2. Let you choose the target file (CLAUDE.md, AGENTS.md, or custom)
+
+### Non-interactive mode
+
+Skip prompts by providing both options:
 
 ```bash
-npx @judegao/next-skills --nextjs-version 15.1.3
+npx @judegao/next-agents-md --next-version 15.1.3 --agents-md-file CLAUDE.md
 ```
 
-Target a different file:
+### Options
 
-```bash
-npx @judegao/next-skills --file AGENTS.md
-```
+- `--next-version <version>` - Override Next.js version
+- `--agents-md-file <path>` - Target markdown file
 
 ## What it does
 

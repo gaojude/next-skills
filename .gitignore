@@ -1,3 +1,5 @@
 node_modules/
 dist/
 tsconfig.json
+# next-agents-md
+.next-docs/

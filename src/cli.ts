@@ -1,22 +1,126 @@
 import { Command } from "commander";
+import prompts from "prompts";
+import chalk from "chalk";
 import { runExperimentalClaudeMd } from "./commands/experimental-claude-md.js";
+import { getNextjsVersion } from "./version/nextjs.js";
+
+interface CliOptions {
+  nextVersionOverride?: string;
+  agentsMdFile?: string;
+}
+
+async function promptForOptions(cwd: string): Promise<{ nextVersion: string; agentsMdFile: string }> {
+  // Detect Next.js version for default
+  const versionResult = getNextjsVersion(cwd);
+  const detectedVersion = versionResult.version;
+
+  console.log(chalk.cyan("\n📚 next-agents-md - Next.js Documentation for AI Agents\n"));
+
+  if (detectedVersion) {
+    console.log(chalk.gray(`   Detected Next.js version: ${detectedVersion}\n`));
+  }
+
+  const response = await prompts([
+    {
+      type: "text",
+      name: "nextVersion",
+      message: "Next.js version",
+      initial: detectedVersion || "",
+      validate: (value: string) =>
+        value.trim() ? true : "Please enter a Next.js version",
+    },
+    {
+      type: "select",
+      name: "agentsMdFile",
+      message: "Target markdown file",
+      choices: [
+        { title: "CLAUDE.md", value: "CLAUDE.md" },
+        { title: "AGENTS.md", value: "AGENTS.md" },
+        { title: "Custom...", value: "__custom__" },
+      ],
+      initial: 0,
+    },
+  ]);
+
+  // Handle cancelled prompts
+  if (response.nextVersion === undefined || response.agentsMdFile === undefined) {
+    console.log(chalk.yellow("\nCancelled."));
+    process.exit(0);
+  }
+
+  let agentsMdFile = response.agentsMdFile;
+
+  if (agentsMdFile === "__custom__") {
+    const customResponse = await prompts({
+      type: "text",
+      name: "customFile",
+      message: "Enter custom file path",
+      initial: "CLAUDE.md",
+      validate: (value: string) =>
+        value.trim() ? true : "Please enter a file path",
+    });
+
+    if (customResponse.customFile === undefined) {
+      console.log(chalk.yellow("\nCancelled."));
+      process.exit(0);
+    }
+
+    agentsMdFile = customResponse.customFile;
+  }
+
+  return {
+    nextVersion: response.nextVersion,
+    agentsMdFile,
+  };
+}
 
 export async function run(): Promise<void> {
   const program = new Command();
 
   program
-    .name("next-skills")
+    .name("next-agents-md")
     .description("Generate a documentation index for Claude/Agents files")
-    .option("--nextjs-version <version>", "Override Next.js version")
-    .option("--file <path>", "Target markdown file", "CLAUDE.md")
-    .option(
-      "--experimental-claude-md",
-      "Generate the docs index (default behavior)"
-    )
-    .action(async (options: { nextjsVersion?: string; file?: string }) => {
+    .option("--next-version-override <version>", "Override Next.js version (for extreme scenarios)")
+    .option("--agents-md-file <path>", "Target markdown file")
+    .action(async (options: CliOptions) => {
+      const cwd = process.cwd();
+
+      // Case 1: If --next-version-override is provided, use it
+      if (options.nextVersionOverride) {
+        const outputFile = options.agentsMdFile || "CLAUDE.md";
+        await runExperimentalClaudeMd({
+          nextjsVersion: options.nextVersionOverride,
+          outputFile,
+        });
+        return;
+      }
+
+      // Case 2: If --agents-md-file is provided, try to detect version
+      if (options.agentsMdFile) {
+        const detected = getNextjsVersion(cwd);
+        if (detected.version) {
+          // Version found, run non-interactively
+          await runExperimentalClaudeMd({
+            nextjsVersion: detected.version,
+            outputFile: options.agentsMdFile,
+          });
+          return;
+        }
+        // Version not found, show error and exit
+        console.error(
+          chalk.red(
+            "\n❌ Could not detect Next.js version. Please use --next-version-override to specify the version.\n"
+          )
+        );
+        process.exit(1);
+      }
+
+      // Case 3: No flags specified, enter interactive mode
+      const promptedOptions = await promptForOptions(cwd);
+
       await runExperimentalClaudeMd({
-        nextjsVersion: options.nextjsVersion,
-        outputFile: options.file,
+        nextjsVersion: promptedOptions.nextVersion,
+        outputFile: promptedOptions.agentsMdFile,
       });
     });
 

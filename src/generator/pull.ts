@@ -40,7 +40,7 @@ export async function pullDocs(options: PullOptions): Promise<PullResult> {
     nextjsVersion = versionResult.version;
   }
 
-  const docsPath = docsDir ?? mkdtempSync(join(tmpdir(), "next-skills-"));
+  const docsPath = docsDir ?? mkdtempSync(join(tmpdir(), "next-agents-md-"));
   const useTempDir = !docsDir;
 
   try {

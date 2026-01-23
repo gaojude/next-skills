@@ -43,7 +43,7 @@ function ensureGitignoreEntry(cwd: string): GitignoreStatus {
   }
 
   const needsNewline = content.length > 0 && !content.endsWith("\n");
-  const header = content.includes("# next-skills") ? "" : "# next-skills\n";
+  const header = content.includes("# next-agents-md") ? "" : "# next-agents-md\n";
   const newContent =
     content + (needsNewline ? "\n" : "") + header + `${GITIGNORE_ENTRY}\n`;
 

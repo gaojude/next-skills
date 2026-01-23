@@ -6,43 +6,30 @@ export interface ClaudeMdIndexData {
 
 /**
  * Generate the documentation index content for CLAUDE.md injection.
- * This creates a compact, directory-grouped index for the pulled docs.
+ * This creates a compact, single-line index for the pulled docs (optimized for AI agents).
  */
 export function generateClaudeMdIndex(data: ClaudeMdIndexData): string {
   const { docsPath, files, githubDocsUrl } = data;
 
-  const lines: string[] = [];
+  const parts: string[] = [];
 
-  // Preamble to encourage Claude to actually read the docs
-  lines.push("# Next.js Documentation");
-  lines.push("");
-  lines.push("Your training data may be outdated. These docs are version-matched to this project.");
-  lines.push("");
-  lines.push("**BEFORE writing any Next.js code:** Search the docs index below for relevant topics, then READ those .mdx files. APIs and configuration have changed.");
-  lines.push("");
-
-  // Header
-  lines.push("## Documentation Index (compact)");
-  lines.push("");
-  lines.push(`Docs root: ${docsPath}`);
+  // Preamble
+  parts.push("[Next.js Docs Index]");
+  parts.push(`root: ${docsPath}`);
   if (githubDocsUrl) {
-    lines.push(`GitHub docs: ${githubDocsUrl}`);
+    parts.push(`github: ${githubDocsUrl}`);
   }
-  lines.push("Format: <dir/> followed by filenames (paths relative to docs root).");
-  lines.push("Tip: strip numeric prefixes and hyphens to read titles.");
-  lines.push("> **If the documentation files are missing**, run: `npx @judegao/next-skills`");
-  lines.push("");
+  parts.push("IMPORTANT: Read .mdx files before writing Next.js code - APIs may have changed.");
+  parts.push(`If docs missing run: npx @judegao/next-agents-md`);
 
+  // Compact file listing: dir/:{file1,file2,file3}
   const groupedFiles = groupFilesByDirectory(files);
   for (const group of groupedFiles) {
     const dirLabel = group.dir === "." ? "(root)" : group.dir;
-    lines.push(`${dirLabel}/`);
-    for (const file of group.files) {
-      lines.push(`  ${file}`);
-    }
+    parts.push(`${dirLabel}:{${group.files.join(",")}}`);
   }
 
-  return lines.join("\n");
+  return parts.join("|");
 }
 
 /**
@@ -78,19 +65,20 @@ function groupFilesByDirectory(
 
 /**
  * Wrap the index content with markers for easy identification and replacement.
+ * Single line format for compact agent consumption.
  */
 export function wrapWithMarkers(content: string): string {
-  const START_MARKER = "<!-- NEXT-SKILLS-START -->";
-  const END_MARKER = "<!-- NEXT-SKILLS-END -->";
+  const START_MARKER = "<!-- NEXT-AGENTS-MD-START -->";
+  const END_MARKER = "<!-- NEXT-AGENTS-MD-END -->";
 
-  return `${START_MARKER}\n${content}\n${END_MARKER}`;
+  return `${START_MARKER}${content}${END_MARKER}`;
 }
 
 /**
  * Check if CLAUDE.md already has our markers.
  */
 export function hasExistingIndex(claudeMdContent: string): boolean {
-  return claudeMdContent.includes("<!-- NEXT-SKILLS-START -->");
+  return claudeMdContent.includes("<!-- NEXT-AGENTS-MD-START -->");
 }
 
 /**
@@ -100,8 +88,8 @@ export function injectIntoClaudeMd(
   claudeMdContent: string,
   indexContent: string
 ): string {
-  const START_MARKER = "<!-- NEXT-SKILLS-START -->";
-  const END_MARKER = "<!-- NEXT-SKILLS-END -->";
+  const START_MARKER = "<!-- NEXT-AGENTS-MD-START -->";
+  const END_MARKER = "<!-- NEXT-AGENTS-MD-END -->";
   const wrappedContent = wrapWithMarkers(indexContent);
 
   if (hasExistingIndex(claudeMdContent)) {
