@@ -12,37 +12,33 @@ export interface ClaudeMdIndexData {
 
 /**
  * Generate the documentation index content for CLAUDE.md injection.
- * Groups files by directory to avoid repeating paths.
+ * Single-line compact format with pipe separators.
  */
 export function generateClaudeMdIndex(data: ClaudeMdIndexData): string {
-  const { libVersion, docsPath, sections, githubDocsUrl, outputFile } = data;
+  const { docsPath, sections, githubDocsUrl, outputFile } = data;
 
-  const lines: string[] = [];
+  const parts: string[] = [];
 
   // Preamble with essential instructions
-  lines.push("# Next.js Docs Index");
-  lines.push("");
-  lines.push("**IMPORTANT:** Do not rely on training data for Next.js APIs. Consult these version-matched docs before AND during implementation.");
-  lines.push("");
-  lines.push(`- **Docs root:** \`${docsPath}\``);
-  lines.push(`- **Full path:** \`${docsPath}/\` + directory + \`/\` + filename`);
-  lines.push("- **Example:** `01-installation.mdx` in `01-app/01-getting-started/` → `" + docsPath + "/01-app/01-getting-started/01-installation.mdx`");
+  parts.push("[Next.js Docs Index]");
+  parts.push(`root: ${docsPath}`);
   if (githubDocsUrl) {
-    lines.push(`- **GitHub:** ${githubDocsUrl}`);
+    parts.push(`github: ${githubDocsUrl}`);
   }
+  parts.push("IMPORTANT: Read .mdx files before writing Next.js code - APIs may have changed.");
   const mdFlag = outputFile && outputFile !== "CLAUDE.md" ? ` --md ${outputFile}` : "";
-  lines.push(`- **Regenerate:** \`npx @judegao/next-agents-md${mdFlag}\``);
-  lines.push("");
+  parts.push(`If docs missing run: npx @judegao/next-agents-md${mdFlag}`);
 
   // Collect all files with their full paths, then group by directory
   const allFiles = collectAllFiles(sections, "");
   const grouped = groupByDirectory(allFiles);
 
+  // Format: dir/:{file1,file2,file3}
   for (const [dir, files] of grouped) {
-    lines.push(`**${dir}/**: ${files.join(", ")}`);
+    parts.push(`${dir}:{${files.join(",")}}`);
   }
 
-  return lines.join("\n");
+  return parts.join("|");
 }
 
 /**
@@ -93,7 +89,7 @@ export function wrapWithMarkers(content: string): string {
   const START_MARKER = "<!-- NEXT-AGENTS-MD-START -->";
   const END_MARKER = "<!-- NEXT-AGENTS-MD-END -->";
 
-  return `${START_MARKER}\n${content}\n${END_MARKER}`;
+  return `${START_MARKER}${content}${END_MARKER}`;
 }
 
 /**
