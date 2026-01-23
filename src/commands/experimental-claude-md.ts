@@ -100,6 +100,7 @@ export async function runExperimentalClaudeMd(
     docsPath: docsLinkPath,
     sections,
     githubDocsUrl,
+    outputFile: targetFile,
   });
 
   indexSpinner.succeed(chalk.green("Documentation index generated"));

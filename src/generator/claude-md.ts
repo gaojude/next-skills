@@ -7,6 +7,7 @@ export interface ClaudeMdIndexData {
   docsPath: string;
   sections: DocSection[];
   githubDocsUrl?: string;
+  outputFile?: string;
 }
 
 /**
@@ -14,29 +15,23 @@ export interface ClaudeMdIndexData {
  * Groups files by directory to avoid repeating paths.
  */
 export function generateClaudeMdIndex(data: ClaudeMdIndexData): string {
-  const { docsPath, sections, githubDocsUrl } = data;
+  const { libVersion, docsPath, sections, githubDocsUrl, outputFile } = data;
 
   const lines: string[] = [];
 
-  // Preamble with clear instructions
-  lines.push("# Next.js Documentation Index");
+  // Preamble with essential instructions
+  lines.push("# Next.js Docs Index");
   lines.push("");
-  lines.push("**IMPORTANT:** Do not rely on your training data for Next.js APIs. Instead, consult these version-matched docs throughout your task - read relevant files before AND during implementation.");
-  lines.push("");
-  lines.push("## How to use this index");
+  lines.push("**IMPORTANT:** Do not rely on training data for Next.js APIs. Consult these version-matched docs before AND during implementation.");
   lines.push("");
   lines.push(`- **Docs root:** \`${docsPath}\``);
-  lines.push("- **Format:** Each heading is a directory path. Files are listed below it.");
   lines.push(`- **Full path:** \`${docsPath}/\` + directory + \`/\` + filename`);
-  lines.push("- **Example:** For `01-installation.mdx` under `01-app/01-getting-started/`, read `" + docsPath + "/01-app/01-getting-started/01-installation.mdx`");
-  lines.push("- **Tip:** Strip numeric prefixes (01-, 02-) and hyphens from filenames to get the topic name");
+  lines.push("- **Example:** `01-installation.mdx` in `01-app/01-getting-started/` → `" + docsPath + "/01-app/01-getting-started/01-installation.mdx`");
   if (githubDocsUrl) {
     lines.push(`- **GitHub:** ${githubDocsUrl}`);
   }
-  lines.push("");
-  lines.push("> If docs are missing, run: `npx @judegao/next-agents-md`");
-  lines.push("");
-  lines.push("## Files by Directory");
+  const mdFlag = outputFile && outputFile !== "CLAUDE.md" ? ` --md ${outputFile}` : "";
+  lines.push(`- **Regenerate:** \`npx @judegao/next-agents-md${mdFlag}\``);
   lines.push("");
 
   // Collect all files with their full paths, then group by directory
@@ -44,11 +39,7 @@ export function generateClaudeMdIndex(data: ClaudeMdIndexData): string {
   const grouped = groupByDirectory(allFiles);
 
   for (const [dir, files] of grouped) {
-    lines.push(`### ${dir}/`);
-    for (const file of files) {
-      lines.push(`- ${file}`);
-    }
-    lines.push("");
+    lines.push(`**${dir}/**: ${files.join(", ")}`);
   }
 
   return lines.join("\n");
@@ -99,8 +90,8 @@ function groupByDirectory(files: string[]): Map<string, string[]> {
  * Wrap the index content with markers for easy identification and replacement.
  */
 export function wrapWithMarkers(content: string): string {
-  const START_MARKER = "<!-- NEXT-SKILLS-START -->";
-  const END_MARKER = "<!-- NEXT-SKILLS-END -->";
+  const START_MARKER = "<!-- NEXT-AGENTS-MD-START -->";
+  const END_MARKER = "<!-- NEXT-AGENTS-MD-END -->";
 
   return `${START_MARKER}\n${content}\n${END_MARKER}`;
 }
@@ -109,7 +100,7 @@ export function wrapWithMarkers(content: string): string {
  * Check if CLAUDE.md already has our markers.
  */
 export function hasExistingIndex(claudeMdContent: string): boolean {
-  return claudeMdContent.includes("<!-- NEXT-SKILLS-START -->");
+  return claudeMdContent.includes("<!-- NEXT-AGENTS-MD-START -->");
 }
 
 /**
@@ -119,8 +110,8 @@ export function injectIntoClaudeMd(
   claudeMdContent: string,
   indexContent: string
 ): string {
-  const START_MARKER = "<!-- NEXT-SKILLS-START -->";
-  const END_MARKER = "<!-- NEXT-SKILLS-END -->";
+  const START_MARKER = "<!-- NEXT-AGENTS-MD-START -->";
+  const END_MARKER = "<!-- NEXT-AGENTS-MD-END -->";
   const wrappedContent = wrapWithMarkers(indexContent);
 
   if (hasExistingIndex(claudeMdContent)) {
@@ -141,8 +132,8 @@ export function injectIntoClaudeMd(
 }
 
 // Nudge markers and content
-const NUDGE_START_MARKER = "<!-- NEXT-SKILLS-NUDGE-START -->";
-const NUDGE_END_MARKER = "<!-- NEXT-SKILLS-NUDGE-END -->";
+const NUDGE_START_MARKER = "<!-- NEXT-AGENTS-MD-NUDGE-START -->";
+const NUDGE_END_MARKER = "<!-- NEXT-AGENTS-MD-NUDGE-END -->";
 
 const NUDGE_CONTENT = `# Next.js Project
 
