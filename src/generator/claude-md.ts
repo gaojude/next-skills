@@ -23,8 +23,8 @@ export function generateClaudeMdIndex(data: ClaudeMdIndexData): string {
   parts.push("[Next.js Docs Index]");
   parts.push(`root: ${docsPath}`);
   parts.push("IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning for any Next.js tasks.");
-  const mdFlag = outputFile && outputFile !== "CLAUDE.md" ? ` --md ${outputFile}` : "";
-  parts.push(`If docs missing run: npx @judegao/next-agents-md${mdFlag}`);
+  const targetFile = outputFile || "CLAUDE.md";
+  parts.push(`If docs missing run: npx @judegao/next-agents-md --md ${targetFile}`);
 
   // Collect all files with their full paths, then group by directory
   const allFiles = collectAllFiles(sections, "");
