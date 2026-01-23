@@ -22,10 +22,7 @@ export function generateClaudeMdIndex(data: ClaudeMdIndexData): string {
   // Preamble with essential instructions
   parts.push("[Next.js Docs Index]");
   parts.push(`root: ${docsPath}`);
-  if (githubDocsUrl) {
-    parts.push(`github: ${githubDocsUrl}`);
-  }
-  parts.push("IMPORTANT: Read .mdx files before writing Next.js code - APIs may have changed.");
+  parts.push("IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning for any Next.js tasks.");
   const mdFlag = outputFile && outputFile !== "CLAUDE.md" ? ` --md ${outputFile}` : "";
   parts.push(`If docs missing run: npx @judegao/next-agents-md${mdFlag}`);
 
