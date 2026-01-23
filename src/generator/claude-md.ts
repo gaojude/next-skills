@@ -11,10 +11,10 @@ export interface ClaudeMdIndexData {
 
 /**
  * Generate the documentation index content for CLAUDE.md injection.
- * This creates a hierarchical index with references to the pulled docs.
+ * Groups files by directory to avoid repeating paths.
  */
 export function generateClaudeMdIndex(data: ClaudeMdIndexData): string {
-  const { libVersion, docsPath, sections, githubDocsUrl } = data;
+  const { docsPath, sections, githubDocsUrl } = data;
 
   const lines: string[] = [];
 
@@ -26,51 +26,71 @@ export function generateClaudeMdIndex(data: ClaudeMdIndexData): string {
   lines.push("**BEFORE writing any Next.js code:** Search the docs index below for relevant topics, then READ those .mdx files. APIs and configuration have changed.");
   lines.push("");
 
-  // Header
+  // Header with metadata
   lines.push("## Documentation Index");
   lines.push("");
-  lines.push("> **If the documentation files are missing**, run: `npx @judegao/next-skills --experimental-claude-md`");
+  lines.push(`Docs root: \`${docsPath}\``);
+  if (githubDocsUrl) {
+    lines.push(`GitHub: ${githubDocsUrl}`);
+  }
+  lines.push("");
+  lines.push("> **If docs are missing**, run: `npx @judegao/next-agents-md`");
   lines.push("");
 
-  // Generate section content
-  for (const section of sections) {
-    lines.push(...generateSectionContent(section, docsPath, 3));
+  // Collect all files with their full paths, then group by directory
+  const allFiles = collectAllFiles(sections, "");
+  const grouped = groupByDirectory(allFiles);
+
+  for (const [dir, files] of grouped) {
+    lines.push(`### ${dir}/`);
+    for (const file of files) {
+      lines.push(`- ${file}`);
+    }
+    lines.push("");
   }
 
   return lines.join("\n");
 }
 
 /**
- * Generate markdown content for a section and its subsections.
+ * Recursively collect all files from sections with their relative paths.
  */
-function generateSectionContent(
-  section: DocSection,
-  docsPath: string,
-  headingLevel: number
+function collectAllFiles(
+  sections: DocSection[],
+  parentPath: string
 ): string[] {
-  const lines: string[] = [];
-  const heading = "#".repeat(headingLevel);
+  const files: string[] = [];
 
-  lines.push(`${heading} ${section.title}`);
-  lines.push("");
-
-  // List files in this section
-  for (const file of section.files) {
-    const fullPath = `${docsPath}/${file.relativePath}`;
-    lines.push(`- [${file.title}](${fullPath})`);
+  for (const section of sections) {
+    for (const file of section.files) {
+      files.push(file.relativePath);
+    }
+    files.push(...collectAllFiles(section.subsections, parentPath));
   }
 
-  if (section.files.length > 0) {
-    lines.push("");
+  return files;
+}
+
+/**
+ * Group files by their parent directory.
+ */
+function groupByDirectory(files: string[]): Map<string, string[]> {
+  const grouped = new Map<string, string[]>();
+
+  for (const filePath of files) {
+    const lastSlash = filePath.lastIndexOf("/");
+    const dir = lastSlash === -1 ? "." : filePath.slice(0, lastSlash);
+    const fileName = lastSlash === -1 ? filePath : filePath.slice(lastSlash + 1);
+
+    const existing = grouped.get(dir);
+    if (existing) {
+      existing.push(fileName);
+    } else {
+      grouped.set(dir, [fileName]);
+    }
   }
 
-  // Recurse into subsections (limit depth to avoid too many heading levels)
-  const nextLevel = Math.min(headingLevel + 1, 6);
-  for (const subsection of section.subsections) {
-    lines.push(...generateSectionContent(subsection, docsPath, nextLevel));
-  }
-
-  return lines;
+  return grouped;
 }
 
 /**
