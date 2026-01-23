@@ -18,23 +18,25 @@ export function generateClaudeMdIndex(data: ClaudeMdIndexData): string {
 
   const lines: string[] = [];
 
-  // Preamble to encourage Claude to actually read the docs
-  lines.push("# Next.js Documentation");
+  // Preamble with clear instructions
+  lines.push("# Next.js Documentation Index");
   lines.push("");
-  lines.push("Your training data may be outdated. These docs are version-matched to this project.");
+  lines.push("**IMPORTANT:** Do not rely on your training data for Next.js APIs. Instead, consult these version-matched docs throughout your task - read relevant files before AND during implementation.");
   lines.push("");
-  lines.push("**BEFORE writing any Next.js code:** Search the docs index below for relevant topics, then READ those .mdx files. APIs and configuration have changed.");
+  lines.push("## How to use this index");
   lines.push("");
-
-  // Header with metadata
-  lines.push("## Documentation Index");
-  lines.push("");
-  lines.push(`Docs root: \`${docsPath}\``);
+  lines.push(`- **Docs root:** \`${docsPath}\``);
+  lines.push("- **Format:** Each heading is a directory path. Files are listed below it.");
+  lines.push(`- **Full path:** \`${docsPath}/\` + directory + \`/\` + filename`);
+  lines.push("- **Example:** For `01-installation.mdx` under `01-app/01-getting-started/`, read `" + docsPath + "/01-app/01-getting-started/01-installation.mdx`");
+  lines.push("- **Tip:** Strip numeric prefixes (01-, 02-) and hyphens from filenames to get the topic name");
   if (githubDocsUrl) {
-    lines.push(`GitHub: ${githubDocsUrl}`);
+    lines.push(`- **GitHub:** ${githubDocsUrl}`);
   }
   lines.push("");
-  lines.push("> **If docs are missing**, run: `npx @judegao/next-agents-md`");
+  lines.push("> If docs are missing, run: `npx @judegao/next-agents-md`");
+  lines.push("");
+  lines.push("## Files by Directory");
   lines.push("");
 
   // Collect all files with their full paths, then group by directory
