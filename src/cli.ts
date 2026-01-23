@@ -5,8 +5,8 @@ import { runExperimentalClaudeMd } from "./commands/experimental-claude-md.js";
 import { getNextjsVersion } from "./version/nextjs.js";
 
 interface CliOptions {
-  nextVersionOverride?: string;
-  agentsMdFile?: string;
+  version?: string;
+  md?: string;
 }
 
 async function promptForOptions(cwd: string): Promise<{ nextVersion: string; agentsMdFile: string }> {
@@ -80,36 +80,36 @@ export async function run(): Promise<void> {
   program
     .name("next-agents-md")
     .description("Generate a documentation index for Claude/Agents files")
-    .option("--next-version-override <version>", "Override Next.js version (for extreme scenarios)")
-    .option("--agents-md-file <path>", "Target markdown file")
+    .option("--version <version>", "Next.js version")
+    .option("--md <path>", "Target markdown file (default: CLAUDE.md)")
     .action(async (options: CliOptions) => {
       const cwd = process.cwd();
 
-      // Case 1: If --next-version-override is provided, use it
-      if (options.nextVersionOverride) {
-        const outputFile = options.agentsMdFile || "CLAUDE.md";
+      // Case 1: If --version is provided, use it
+      if (options.version) {
+        const outputFile = options.md || "CLAUDE.md";
         await runExperimentalClaudeMd({
-          nextjsVersion: options.nextVersionOverride,
+          nextjsVersion: options.version,
           outputFile,
         });
         return;
       }
 
-      // Case 2: If --agents-md-file is provided, try to detect version
-      if (options.agentsMdFile) {
+      // Case 2: If --md is provided, try to detect version
+      if (options.md) {
         const detected = getNextjsVersion(cwd);
         if (detected.version) {
           // Version found, run non-interactively
           await runExperimentalClaudeMd({
             nextjsVersion: detected.version,
-            outputFile: options.agentsMdFile,
+            outputFile: options.md,
           });
           return;
         }
         // Version not found, show error and exit
         console.error(
           chalk.red(
-            "\n❌ Could not detect Next.js version. Please use --next-version-override to specify the version.\n"
+            "\n❌ Could not detect Next.js version. Please use --version to specify the version.\n"
           )
         );
         process.exit(1);

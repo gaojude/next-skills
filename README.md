@@ -16,16 +16,16 @@ This starts an interactive prompt that will:
 
 ### Non-interactive mode
 
-Skip prompts by providing both options:
+Skip prompts by providing the version:
 
 ```bash
-npx @judegao/next-agents-md --next-version 15.1.3 --agents-md-file CLAUDE.md
+npx @judegao/next-agents-md --version 15.1.3
 ```
 
 ### Options
 
-- `--next-version <version>` - Override Next.js version
-- `--agents-md-file <path>` - Target markdown file
+- `--version <version>` - Next.js version
+- `--md <path>` - Target markdown file (default: CLAUDE.md)
 
 ## What it does
 
