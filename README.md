@@ -24,6 +24,7 @@ Works with Claude Code, Cursor, Codex, and the other agents the
 | [`diagnose-ssr`](skills/diagnose-ssr/SKILL.md) | Verify the page paints contentful HTML with all client JS aborted at the network layer. |
 | [`diagnose-ppr`](skills/diagnose-ppr/SKILL.md) | Grade the PPR static shell — what the user sees before dynamic content streams in. |
 | [`diagnose-instant-nav`](skills/diagnose-instant-nav/SKILL.md) | Grade the shell for an internal client-side navigation — what the user sees the instant they click a link. |
+| [`locate-route`](skills/locate-route/SKILL.md) | Identify the layout chain, page entry, and error boundaries that render the URL currently loaded in the browser — via `/_next/mcp`. |
 | [`prep-browser-session`](skills/prep-browser-session/SKILL.md) | Bootstrap the browser session the diagnose-* skills assume. Invoked automatically by `diagnose-page-load`; run directly when a leaf reports no active session. |
 
 ## Prerequisites
