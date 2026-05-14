@@ -44,27 +44,46 @@ RAND="p$(awk 'BEGIN{srand(); print rand()}')"
 agent-browser cookies set next-instant-navigation-testing "[0,\"$RAND\"]" --url "$FROM_URL"
 ```
 
-### 3. Navigate via `pushstate`
+### 3. Navigate via `pushstate` and wait for the swap
 
 `agent-browser pushstate` calls `window.next.router.push` directly.
 Use it instead of clicking the actual link — it sidesteps menu
 portals, stale refs, and dropdown click interception that have
 nothing to do with the navigation you're trying to measure.
 
+In dev, the first prerender of an unhit route can take several
+seconds even when the shell is structurally fine. Don't use a fixed
+`wait 800` — poll for the URL swap on a budget.
+
 ```bash
+BUDGET_MS=${BUDGET_MS:-15000}
 agent-browser pushstate "$TO_PATH"
-agent-browser wait 800
+ELAPSED=timeout
+START=$(python3 -c 'import time; print(int(time.time()*1000))')
+for i in $(seq 1 $((BUDGET_MS / 250))); do
+  case "$(agent-browser get url 2>/dev/null)" in
+    *"$TO_PATH"*)
+      ELAPSED=$(($(python3 -c 'import time; print(int(time.time()*1000))') - START))
+      break ;;
+  esac
+  sleep 0.25
+done
+echo "swap elapsed: ${ELAPSED}ms"
 agent-browser screenshot --full /tmp/diagnose-instant-nav-shell.png
 ```
 
-**If `agent-browser get url` is unchanged**, the router refused to
-navigate. The destination has no static shell to swap to — this is
-itself the grade-F finding. To see what blocked it, release the
-lock, hard-reload the source page, capture
-`agent-browser react suspense --json`, navigate (no lock) to
-`$TO_URL`, and capture the Suspense tree again. The diff shows
-what the destination needed that the source didn't. Skip to
-step 5.
+Don't use `agent-browser wait --url` — it has no built-in timeout
+and will hang if the swap never happens.
+
+The shell screenshot captures what the user sees the moment the
+swap completes — the meaningful frame, since the lock cookie tells
+the router to swap only after a prerendered shell is available.
+
+**If `ELAPSED` is `timeout`**, the router refused — grade F. To see
+what blocked it, release the lock, hard-reload the source page,
+capture `agent-browser react suspense --json`, navigate (no lock)
+to `$TO_URL`, and capture the Suspense tree again. The diff shows
+what the destination needed that the source didn't. Skip to step 5.
 
 ### 4. Release the lock and capture resolved
 
@@ -84,7 +103,13 @@ the resolved page is already visible in the shell?
 | Most route content already painted | **A** | Suspense boundaries are tight; transition feels native. |
 | Route header + structure visible, main content fills in | **B** | User sees the page changed; details stream in. |
 | Just the layout swap, content still loading | **C** | Most of `page.tsx` is behind one big Suspense. |
-| Nothing new vs source | **F** | Route is fully dynamic, or router refused to navigate. |
+| URL never swapped within the budget | **F** | Route is fully dynamic, or router refused to navigate. |
+
+Grade by **shell content**, not elapsed time. The elapsed time is
+a dev-mode artifact — production prerender shells are built ahead
+and served instantly. A long wait that ends with grade-A content
+means production will be instant; a fast wait that ends with empty
+content means production will paint nothing on click.
 
 ## Output
 
