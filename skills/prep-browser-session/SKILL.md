@@ -1,53 +1,31 @@
 ---
 name: prep-browser-session
-description: Bootstrap a real browser session that the diagnose-* skills can build on — verifies the Next.js dev server is up, opens system Chrome with React DevTools enabled, and waits for the user to land on the target page (logging in interactively if needed). Use as a prerequisite when any diagnose-* skill reports no active agent-browser session, or directly when you want to prep an environment without running diagnostics. Invoked automatically by [[diagnose-page-load]] and referenced by [[diagnose-error]], [[diagnose-ssr]], [[diagnose-ppr]], [[diagnose-instant-nav]] as their precondition.
+description: Bootstrap the browser session the diagnose-* skills assume — verifies the Next.js dev server is up, opens system Chrome with React DevTools enabled, and waits for the user to land on the target page (logging in interactively if needed). Use as a prerequisite when any diagnose-* skill reports no active agent-browser session.
 ---
 
 # prep-browser-session
 
-Sets up the world the diagnose-* skills assume: a running dev server,
-a real headed Chrome with the React DevTools hook installed, and a
-session parked on whatever URL the user wants to investigate.
-
-This skill exists so leaf diagnoses (`diagnose-error`, `diagnose-ssr`,
-`diagnose-ppr`, `diagnose-instant-nav`) can be invoked standalone
-without re-implementing the bootstrap. If you've already run it (or
-[[diagnose-page-load]], which calls it), you don't need to re-run it
-between leaves — the session persists.
-
-## When to invoke
-
-- Any diagnose-* skill detects no active `agent-browser` session and
-  references this skill in its prerequisites.
-- A user wants to prep the environment ahead of ad-hoc browser work
-  without running a full diagnosis.
-- The previous session was closed (`agent-browser close`) and the
-  React DevTools hook needs to be re-installed.
-
-You do **not** need to run this when bouncing between leaf diagnoses
-on the same session — Chrome stays open and the hook persists.
+Sets up what the diagnose-* skills assume: a running dev server, a
+real headed Chrome with the React DevTools hook installed, and a
+session parked on the target URL. Run once per session — the leaves
+share it.
 
 ## Procedure
 
-### 1. Ensure the dev server is running
-
-Check the project's dev port (usually 3000). If nothing is listening,
-ask the user to start it — don't auto-start; the process is
-long-lived and the user owns the terminal:
+### 1. Check the dev server
 
 ```bash
 lsof -i :3000 -P -n | grep LISTEN
 ```
 
-If the server runs on a non-standard port, ask the user for the URL.
-Keep that URL handy as `$DEV` for downstream skills.
+If nothing's listening, ask the user to start it. Don't auto-start —
+the dev server is long-lived and the user owns the terminal. If the
+server runs on a different port, get the URL and use that for `$DEV`.
 
-### 2. Open headed system Chrome with React DevTools
+### 2. Launch system Chrome with React DevTools
 
-Drive **system Chrome**, not the bundled Chromium-for-Testing — the
-user dislikes the testing browser and wants their normal profile/fonts
-to match real users. Pass `--executable-path` as a **global flag
-before the subcommand**:
+Drive **system Chrome**, not the Playwright-bundled testing browser
+— the user wants their normal profile/fonts.
 
 ```bash
 agent-browser \
@@ -55,63 +33,47 @@ agent-browser \
   open --headed --enable react-devtools about:blank
 ```
 
-The `--enable react-devtools` flag is mandatory: PPR and instant-nav
-diagnoses call `agent-browser react …`, which needs the DevTools hook
-installed at launch. Land on `about:blank` so the user can drive from
-there.
+The `--enable react-devtools` flag is mandatory: `agent-browser react …`
+needs the hook installed at launch.
 
-If a daemon is already running with the wrong binary, run
-`agent-browser close` first — option changes are ignored on a live
-session. You can also set `AGENT_BROWSER_EXECUTABLE_PATH` in the shell
-env to avoid passing the flag every time.
+If a daemon is already running with the wrong settings, `agent-browser
+close` first — options aren't applied to a live session.
 
-### 3. Human-in-the-loop: navigate / log in
+If `agent-browser` isn't installed: `npm i -g @vercel/next-browser &&
+playwright install chromium`.
 
-Ask the user (via `AskUserQuestion` or plain prompt):
+### 3. Hand off to the user
 
-> "Drive the browser to the page you want diagnosed. If this is a
-> logged-in page, log in now. Reply when you're on the target page."
+Ask via `AskUserQuestion` or a plain prompt:
 
-For logged-in flows the user performs login interactively — don't try
-to script credentials.
+> "Drive the browser to the page you want diagnosed. Log in if needed.
+> Reply when you're on the target page."
 
-### 4. Capture starting state
+Don't try to script logins.
 
-Once the user confirms, record the URL and save browser state so a
-re-run can skip the login dance:
+### 4. Save state
 
 ```bash
 URL=$(agent-browser get url)
 agent-browser state save .claude/diagnose-state.json
 ```
 
-Add `.claude/diagnose-state.json` to `.gitignore` if not already (it
-contains session cookies). On re-runs, reload via
+Add `.claude/diagnose-state.json` to `.gitignore` (it contains session
+cookies). On re-runs:
 `agent-browser --state .claude/diagnose-state.json open "$URL"`.
 
 ## Output
 
-Returns the prepared starting URL (`$URL`) to the caller. The caller
-can `agent-browser get url` themselves at any time — the URL isn't
-stashed anywhere magical.
+The prepared starting URL. Leaves can call `agent-browser get url`
+themselves at any time.
 
-## Verification recipe (for leaves)
-
-A leaf skill can probe whether prep has already run with:
+## Leaf-side probe
 
 ```bash
-agent-browser get url    # errors if no session; prints URL if alive
+agent-browser get url    # errors if no session
+agent-browser react suspense > /dev/null 2>&1  # errors if hook missing
 ```
 
-If that fails, the leaf should invoke this skill before continuing.
-If it succeeds and the React DevTools hook is needed but missing
-(`agent-browser react suspense` errors with "DevTools hook not
-installed"), run `agent-browser close` and re-invoke this skill to
-relaunch with the flag.
-
-## Related
-
-- [[diagnose-page-load]] — full-page orchestrator; calls this skill
-  first, then chains the diagnostic leaves.
-- [[diagnose-error]], [[diagnose-ssr]], [[diagnose-ppr]],
-  [[diagnose-instant-nav]] — leaf diagnoses that depend on this prep.
+If either fails, the leaf should re-invoke this skill. A missing
+DevTools hook needs an `agent-browser close` + relaunch — the hook is
+install-at-launch only.

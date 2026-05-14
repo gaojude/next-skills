@@ -1,45 +1,38 @@
 ---
 name: diagnose-error
-description: Check whether the currently loaded page has critical errors — browser console errors, Next.js compilation issues, dev-server runtime errors, and obvious UI breakage. Use as a precondition before deeper SSR or PPR diagnosis, or standalone when the user asks "what's wrong with this page" / "is this page healthy". Assumes an agent-browser session is already on the target page.
+description: Check whether the currently loaded page has critical errors — browser console, Next.js compile/runtime errors, and obvious UI breakage. Use as a precondition before SSR or PPR diagnosis, or standalone when asking "what's wrong with this page" / "is this page healthy".
 ---
 
 # diagnose-error
 
-Quick health check on the currently loaded page. Three signals: browser
-console, Next.js MCP server, visual UI.
+Quick health check. Three signals: browser console, Next.js MCP
+server, visual UI.
 
 ## Prerequisites
 
-- Next.js 16+ dev server running (for the `/_next/mcp` step).
-- An `agent-browser` session is already on the target page. Probe with:
-
-  ```bash
-  agent-browser get url    # errors if no session; prints URL if alive
-  ```
-
-  If unmet, invoke [[prep-browser-session]] first to bootstrap.
+- Next.js 16+ dev server (for the `/_next/mcp` step).
+- agent-browser session on the target page. If unmet, invoke
+  [[prep-browser-session]].
 
 ## Procedure
 
-### 1. Browser-side errors
+### 1. Browser errors
 
 ```bash
 agent-browser errors
 agent-browser console
 ```
 
-Classify what you see:
+Classify:
+- **Critical** — uncaught exceptions, hydration mismatch errors,
+  errors thrown from a Server Component, RSC 500s. Abort.
+- **Warning** — React dev-mode warnings, deprecation notices. Note,
+  don't abort.
+- **Noise** — vendor analytics chatter, expected 4xx probes. Ignore.
 
-| Severity | Examples | Action |
-|---|---|---|
-| **Critical** | Uncaught exception, hydration mismatch error, `Error: ...` thrown from a Server Component, RSC 500 in the network panel | Report and **abort** the parent diagnosis. |
-| **Warning** | React dev-mode warnings, deprecation notices, missing-key warnings | Note in the report, don't abort. |
-| **Noise** | Vendor analytics chatter, expected 4xx on probing endpoints | Ignore. |
+### 2. Next.js MCP
 
-### 2. Next.js dev-server state
-
-Query `/_next/mcp` for authoritative server-side errors (configuration
-+ live session errors):
+`/_next/mcp` reports authoritative server-side errors:
 
 ```bash
 DEV=${DEV:-http://localhost:3000}
@@ -50,49 +43,38 @@ mcp() {
     -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"$1\",\"arguments\":{}}}" \
     | sed -n 's/^data: //p'
 }
-
-mcp get_errors                  # { configErrors: [], sessionErrors: [] } → healthy
-mcp get_compilation_issues      # { issues: [] }                          → healthy
+mcp get_errors                # configErrors + sessionErrors
+mcp get_compilation_issues    # build/transform errors
 ```
 
-`configErrors` non-empty → broken `next.config.*`. **Critical, abort.**
-`sessionErrors` non-empty → runtime error reported from the browser
-session — investigate, usually critical.
-`issues` non-empty → build/transform errors. **Critical, abort.**
+Any non-empty `configErrors`, `sessionErrors`, or `issues` → critical.
 
-If the MCP endpoint 404s or refuses, the dev server isn't Next 16+;
-skip this step but note it.
+If `/_next/mcp` 404s, the dev server isn't Next 16+. Skip and note.
 
-### 3. Visual UI sanity
-
-Capture a full-page screenshot and eyeball it:
+### 3. Visual sanity
 
 ```bash
 agent-browser screenshot --full /tmp/diagnose-error-ui.png
 ```
 
-Look for: blank/white page, layout collapse, untranslated keys
-(`t('foo.bar')`), runaway skeletons that never resolve, error overlays
-covering the page, broken images (large gray boxes).
-
-Anything that looks "page is broken to a human" → critical.
+Look for: blank page, layout collapse, untranslated `t('foo.bar')`
+strings, runaway skeletons, error overlays, broken images. Anything
+that looks "broken to a human" → critical.
 
 ## Output
-
-Report in this shape:
 
 ```
 diagnose-error: <PASS|FAIL>
 
-Browser errors: <count> critical, <count> warning
-  - <one-line summary per critical>
+Browser errors: <N> critical, <N> warning
+  - <one-line per critical>
 Next.js MCP:
-  configErrors: <count>
-  sessionErrors: <count>
-  compilation issues: <count>
+  configErrors:        <N>
+  sessionErrors:       <N>
+  compilation issues:  <N>
 UI screenshot: /tmp/diagnose-error-ui.png
-  notes: <e.g. "blank page", "renders normally", "error overlay visible">
+  notes: <e.g. "blank page", "renders normally", "error overlay">
 ```
 
-If `FAIL`, the caller (e.g. [[diagnose-page-load]]) should stop and
-surface the report to the user before continuing.
+If `FAIL`, the caller should stop and surface the report before
+continuing to deeper diagnoses.
