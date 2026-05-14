@@ -59,7 +59,12 @@ agent-browser screenshot --full /tmp/diagnose-instant-nav-shell.png
 
 **If `agent-browser get url` is unchanged**, the router refused to
 navigate. The destination has no static shell to swap to — this is
-itself the grade-F finding. Skip to step 5.
+itself the grade-F finding. To see what blocked it, release the
+lock, hard-reload the source page, capture
+`agent-browser react suspense --json`, navigate (no lock) to
+`$TO_URL`, and capture the Suspense tree again. The diff shows
+what the destination needed that the source didn't. Skip to
+step 5.
 
 ### 4. Release the lock and capture resolved
 

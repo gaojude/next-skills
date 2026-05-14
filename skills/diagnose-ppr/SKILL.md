@@ -60,8 +60,9 @@ NEXT_STATIC_GEN_BAILOUT
 Route "/...": Next.js encountered uncached or runtime data
 ```
 
-These point at the exact file:line that's blocking PPR — far more
-useful than the screenshot for diagnosis.
+When you see a bailout, release the lock, hard-reload the page,
+then run `agent-browser react suspense --json` to see the real
+blockers.
 
 ### 4. Release the lock and capture resolved
 
