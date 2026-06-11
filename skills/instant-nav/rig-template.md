@@ -32,8 +32,8 @@ agent is allowed to push and wait on CI unattended.
 2. **EXPOSE** — what condition turns on
    `experimental.exposeTestingApiInProductionBuild` for every measured build,
    and never for real production? Spellings: `process.env.VERCEL_ENV ===
-   'preview'` on Vercel; your CI's preview/staging env var elsewhere; an
-   explicit `EXPOSE_TESTING_API=1` for local prod builds.
+'preview'` on Vercel; your CI's preview/staging env var elsewhere; an
+   explicit `EXPOSE_TESTING_API=1` for local production builds.
 3. **RUN** — how is the Playwright suite invoked, and against which
    `BASE_URL`?
 4. **TEST USER** — which account does the suite run as, and how does login
@@ -54,16 +54,16 @@ agent is allowed to push and wait on CI unattended.
 ```md
 # instant-nav rig — <project>
 
-- BUILD:  <command / platform that produces the measured prod build>
+- BUILD: <command / platform that produces the measured production build>
 - EXPOSE: <the condition wired to exposeTestingApiInProductionBuild>
-- RUN:    <e2e command> against <how BASE_URL is obtained>
-- USER:   <account> via <login mechanism>; flags/plan/role/data: <...>
-- DRIFT:  <the enumerated drift surface>
-- LOOP:   <push → CI → e2e, or local build → start → test>; agent limits: <...>
-- WALLS:  <project-specific build/run gotchas + their workarounds>
+- RUN: <e2e command> against <how BASE_URL is obtained>
+- USER: <account> via <login mechanism>; flags/plan/role/data: <...>
+- DRIFT: <the enumerated drift surface>
+- LOOP: <push → CI → e2e, or local build → start → test>; agent limits: <...>
+- WALLS: <project-specific build/run obstacles + their workarounds>
 ```
 
-`WALLS` matters more than it looks. Real apps rarely prod-build cleanly
+`WALLS` matters more than it looks. Real apps rarely build for production cleanly
 outside CI — missing secrets, server-only imports that fail prerender, ports
 held by respawning servers. Record each wall and its workaround the first time
 you hit it; that accumulated knowledge is most of the file's value. (The app
@@ -84,4 +84,4 @@ CI job runs Playwright against the staging URL. LOOP: push → pipeline → e2e.
 **No CI / local-only.** BUILD: `EXPOSE_TESTING_API=1 next build && next
 start`. EXPOSE: that env var. RUN: `BASE_URL=http://localhost:3000 playwright
 test`. LOOP: entirely local; nothing is pushed. Slower to iterate, equally
-trustworthy — the verdict comes from the prod build, not the platform.
+trustworthy — the verdict comes from the production build, not the platform.

@@ -1,197 +1,214 @@
 ---
 name: instant-nav
-description: Make a Next.js navigation (or hard load) instant under Cache Components / PPR, and prove it with @next/playwright instant(). Use when asked to make an A→B navigation render instantly (or "instantify" a route), fix a route whose static shell isn't prefetched or served, or write the instant() e2e guard for one. Platform-agnostic by design — a setup phase discovers the project's own build/deploy/test rig (Vercel, generic CI, or local-only) and records it in a project-local rig file. Covers the RED-test trustworthiness gate, the compose-don't-curtain fix patterns, and the parity check that the refactor changed only the instancy.
+description: Make a Next.js route render instantly under Cache Components / PPR — on initial load (hard navigation) and on client-side navigation (soft navigation) — and prove it with @next/playwright instant(). Use when asked to make a navigation instant, fix a route whose static shell isn't served or prefetched, or write the instant() e2e guard for one. A setup phase discovers the project's build/deploy/test infrastructure (Vercel, generic CI, or local-only) and records it in a project-local rig file. Covers the RED-test trustworthiness gate, the Suspense push-down fix patterns, and the parity check that the refactor changed only the instancy.
 ---
 
-# Instant nav — make a navigation instant (and prove it)
+# instant-nav
 
-Take one navigation `A → B` from "not instant" to "instant", and prove it with
-`@next/playwright`'s `instant()`. **Work the phases A → G in order.** Each ends
-in a gate you pass before the next. The fix recipes live in two lazily-read
-docs — `reference/patterns.md` (before→after fix for every blocker type) and
-`reference/real-app-patterns.md` (parallel slots, auth gates, soft-nav vs
-page-load, the blank-shell and mobile-drift traps). Read one only when its
-phase points you there.
+Take one route from "not instant" to "instant", and prove it with
+`@next/playwright`'s `instant()`. Work the phases 0 → G in order; each ends in
+a gate. Fix recipes live in two lazily-read references —
+`reference/patterns.md` (before→after for each blocker type) and
+`reference/real-app-patterns.md` (parallel routes, auth gates, the blank-shell
+and responsive-skeleton traps). Read one only when its phase points there.
+
+## Two navigations, two loading states
+
+A route reaches the user in two ways. Both must be instant:
+
+- **Initial load (hard navigation).** The browser requests the document. With
+  PPR, the server responds immediately with the route's prerendered **static
+  shell**; dynamic content streams in afterward. The loading state is the
+  shell itself: the layout UI, plus the loading skeletons (Suspense fallbacks,
+  `loading.tsx`) of the deferred parts.
+- **Client-side navigation (soft navigation).** The router commits the
+  destination's prefetched static shell when the link is activated; only the
+  route segments that change re-render, and dynamic data streams in afterward.
+  The loading state is the prefetched shell, with the same loading skeletons.
+
+The fix patterns are identical for both. The test differs only in how the
+navigation is driven — `page.goto()` for the initial load, a real `<Link>`
+click for the client-side navigation (`test-template.md`). The two shells can
+differ for the same route (see the caveat in
+`reference/real-app-patterns.md`), so test the case you are shipping; guard
+both when both matter.
 
 ## Goal
 
-Maximize B's **static shell**: the most meaningful prerendered chrome commits
-immediately on the nav; only genuinely per-request data streams after. The
-metric is **present ∧ instant ∧ non-blank** — `instant()` green alone is not
-the goal, because a blank `fallback={null}` shell passes too (the blank-shell
-trap, `reference/real-app-patterns.md`). And the refactor must change *only*
-that one property — nothing about what B renders (phase E).
+Maximize the static shell: the most meaningful prerendered content commits
+immediately, and only genuinely per-request data streams in afterward. The bar
+is **present ∧ instant ∧ non-blank** — an `instant()` pass alone is not
+sufficient, because a blank `fallback={null}` shell also passes (the
+blank-shell trap, `reference/real-app-patterns.md`). And the refactor must
+change only this property — nothing else about what the route renders
+(phase E).
 
-`instant()` is the **ruler**, not a stopwatch — you assert the shell *shows
-up* under the lock, you do not time it. A trustworthy ruler needs a **prod
-build** (phase A); `next dev`'s `instant()` lies for blocking routes
-(false-passes after ~5s).
+`instant()` is a ruler, not a stopwatch: assert that the shell appears under
+the lock; do not time it. A trustworthy verdict requires a production build
+(phase A) — `next dev`'s `instant()` is unreliable for blocking routes and
+reports a false pass after ~5s.
 
-## Why a test, not a vibe
+## Verification first
 
 You — or an agent — can only work toward what you can verify. This skill turns
-"make this navigation instant" into a deterministic verdict, then spends most
-of its words making that verdict trustworthy, because a reliable verdict is
-what lets the fix loop run unattended (`CASE-STUDY.md`). The principles here
-are environment-independent. Your infrastructure is not — so phase 0 discovers
-this project's actual build/deploy/test flow and records it, instead of
-assuming a platform.
+"make this route instant" into a deterministic test verdict, then makes that
+verdict trustworthy; a reliable verdict is what allows the fix loop to run
+unattended (`CASE-STUDY.md`). The principles below are
+environment-independent. Your infrastructure is not, so phase 0 discovers the
+project's actual build/deploy/test flow rather than assuming a platform.
 
-## The workflow — copy this checklist, check off as you go
+## The workflow
 
 ```
 - [ ] 0  SETUP        once per repo: discover + write instant-nav.rig.md       → rig-template.md
-- [ ] A  RIG          prod build + testing API exposed (per the rig file)      → below
-- [ ] B  BASELINE     unlocked: marker renders for the CI test user            → test-template.md
-- [ ] C  RED          locked instant(): shell does NOT commit = the gap        → test-template.md
-- [ ] C-gate PROVE-RED   the RED is trustworthy (the one question)   ⛔ STOP   → reference/red-test-robustness.md
-- [ ] D  FIX          compose, don't curtain — push each boundary to its I/O   → reference/patterns.md
-- [ ]      D1 reuse the page's EXISTING loading UI; never hand-build a skeleton
-- [ ]      D2 the shell matches the real render at every breakpoint (mobile too)
-- [ ] E  PARITY       refactor changed ONLY the instancy — verify nothing else
-- [ ] F  DIFFERENTIAL revert-only-fix → RED; re-apply → GREEN                  → reference/red-test-robustness.md
+- [ ] A  RIG          production build with the testing API exposed            → below
+- [ ] B  BASELINE     unlocked: the marker renders for the CI test user        → test-template.md
+- [ ] C  RED          locked instant(): the shell does not commit              → test-template.md
+- [ ] C-gate          PROVE-RED: stop until the RED is trustworthy             → reference/red-test-robustness.md
+- [ ] D  FIX          push each Suspense boundary down to the data it guards   → reference/patterns.md
+- [ ]      D1 reuse the route's existing loading UI; do not hand-build skeletons
+- [ ]      D2 the shell matches the real render at every breakpoint
+- [ ] E  PARITY       the refactor changed only the instancy
+- [ ] F  DIFFERENTIAL revert only the fix → RED; re-apply → GREEN              → reference/red-test-robustness.md
 - [ ] G  REVIEW       PR checklist (below)
 ```
 
-Phases B–C build the test; only the locked test (C, minus the dev-only
-baseline) ships.
+Phases B–C build the test; only the locked test from C ships.
 
 ---
 
 ## 0 — SETUP: discover this project's rig, once per repo
 
 The principles in this skill are fixed; the infrastructure they run on is
-yours. On first use in a repo, discover how THIS project builds, deploys,
-authenticates, and tests — inspect the repo first, ask the user only what it
-can't answer — and write the answers to a committed `instant-nav.rig.md`.
-Every later run reads that file instead of rediscovering. The six questions
-(BUILD / EXPOSE / RUN / TEST USER / DRIFT / LOOP), the file template, and
-filled examples (Vercel previews, generic CI + container, local-only) →
-**`rig-template.md`**.
+yours. On first use in a repository, discover how the project builds, deploys,
+authenticates, and tests — inspect the repository first, and ask the user only
+what it cannot answer — then write the answers to a committed
+`instant-nav.rig.md`. Every later run reads that file instead of
+rediscovering. The six questions (BUILD / EXPOSE / RUN / TEST USER / DRIFT /
+LOOP), the file template, and filled examples (Vercel previews, generic CI +
+container, local-only) are in **`rig-template.md`**.
 
-## A — RIG: a prod build with the testing API exposed
+## A — RIG: a production build with the testing API exposed
 
-Stand up the rig your `instant-nav.rig.md` describes. Two invariants hold on
+Stand up the rig described by `instant-nav.rig.md`. Two invariants hold on
 every platform:
 
-1. **Never measure on `next dev`.** Its lock leaks for blocking routes and
-   false-passes after ~5s. Not a valid RED or GREEN.
-2. **The measured build must expose the testing API**, or `instant()`
-   silently no-ops and the test passes **vacuously** (the footgun in
+1. **Never measure on `next dev`.** Its lock is unreliable for blocking routes
+   and reports a false pass after ~5s. Not a valid RED or GREEN.
+2. **The measured build must expose the testing API.** Otherwise `instant()`
+   silently no-ops and the test passes vacuously (see
    `reference/red-test-robustness.md`). Wire
    `experimental.exposeTestingApiInProductionBuild` to a condition that is
-   true for every build you measure and never true in real production:
+   true for every build you measure and never true in production:
 
    ```ts
    experimental: {
-     // pick the spelling your platform gives you — record it in the rig file:
+     // Use the condition your platform provides — record it in the rig file:
      //   Vercel:      process.env.VERCEL_ENV === 'preview'
-     //   generic CI:  your preview/staging env var
+     //   generic CI:  your preview/staging environment variable
      //   local:       an explicit opt-in, as below
      exposeTestingApiInProductionBuild:
        process.env.EXPOSE_TESTING_API === '1',
    }
    ```
 
-The best rig is whatever prod-like build your CI already produces on every
-push — a Vercel preview, a staging container, a build artifact. It has the
-real env (none of the local-build walls), and it closes the loop an unattended
-agent can drive: push, wait for the build, run the test, read the failure,
-fix, push again. No CI? The loop is local and equally trustworthy:
-`next build && next start` with the flag set — the verdict comes from the prod
-build, not the platform.
+The best rig is whatever production-like build your CI already produces on
+every push — a Vercel preview, a staging container, a build artifact. It has
+the real environment, and it closes the loop an unattended agent can drive:
+push, wait for the build, run the test, read the failure, fix, push again.
+Without CI, the loop is local and equally trustworthy: `next build && next
+start` with the flag set. The verdict comes from the production build, not the
+platform.
 
-One caveat with the CI loop: verify the build under test is actually live
-before trusting a verdict — a test run against the *previous* deploy reads as
-a false RED (or false GREEN). Poll the deploy for a marker from your latest
-commit; don't race the rebuild.
+One caveat for the CI loop: confirm the build under test is live before
+trusting a verdict — a test run against the previous deployment reads as a
+false RED or a false GREEN. Poll the deployment for a marker from the latest
+commit; do not race the rebuild.
 
-## B — BASELINE (unlocked) — dev-loop scaffold, don't ship
+## B — BASELINE (unlocked) — development scaffold, do not ship
 
-Click the real A→B `<Link>` with **no** `instant()` lock and assert B's
-`SHELL_MARKER` renders **as the CI test user** — their flags, plan, role, and
-empty-state. This proves the marker is real *and* reachable: not flag-gated,
-not redirected away, not a guessed selector. Run it as the CI test user, not
-just yourself locally — the test runs as someone who isn't you, with flags,
-plan, role, and data that aren't yours, and that drift (the DRIFT list in your
-rig file) is where most false-REDs come from. Scaffold + run command →
-**`test-template.md`**. **Delete this baseline before the PR.**
+Drive the real navigation with no `instant()` lock and assert that the
+destination's `SHELL_MARKER` renders **as the CI test user** — their flags,
+plan, role, and data. This proves the marker is real and reachable: not
+flag-gated, not redirected away, not a guessed selector. The test runs as
+someone who is not you, with state that is not yours; that drift (the DRIFT
+list in the rig file) is where most untrustworthy REDs come from. Scaffold and
+run command: **`test-template.md`**. **Delete this baseline before the PR.**
 
 ## C — RED (locked) + the PROVE-RED gate
 
-Wrap the same click in `instant()`; assert the shell commits under the lock.
-RED here is the gap. **This is the test that ships** → **`test-template.md`**.
+Wrap the same navigation in `instant()`; assert the shell commits under the
+lock. A RED here is the gap. **This is the test that ships**
+(`test-template.md`).
 
-> ⛔ **Gate C — do not start optimizing until the RED is proven trustworthy.**
-> A RED that is red for the wrong reason sends you optimizing something that
-> was never broken — the single most expensive mistake in this work. Spend the
-> few minutes here.
+> **Gate C — do not start optimizing until the RED is proven trustworthy.** A
+> RED that is red for the wrong reason sends you optimizing a route that was
+> never broken — the most expensive mistake in this work.
 
-**The one question that settles it:** *does `SHELL_MARKER` render WITHOUT the
-lock, as the CI test user?*
+The question that settles it: **does `SHELL_MARKER` render without the lock,
+as the CI test user?**
 
-- **No** → it's a **marker/env bug** (flag-gated redirect, guessed
-  `role`/`name`, empty-state, or the marker is itself streamed). Fix the
-  marker, **not the route**. Answer the question by re-running phase B as the
-  CI test user — not by adding timing or extra assertions to the shipped test.
-- **Yes** → the marker is real and reachable; a RED *under the lock* is a
-  genuine instancy gap. Proceed to D.
+- **No** — this is a marker or environment bug (flag-gated redirect, guessed
+  selector, empty state, or a marker that is itself streamed). Fix the marker,
+  not the route. Answer by re-running phase B as the CI test user, not by
+  adding assertions to the shipped test.
+- **Yes** — the marker is real and reachable; a RED under the lock is a
+  genuine gap. Proceed to D.
 
-The full false-RED taxonomy, the trustworthiness checklist, and worked cases
-(flag-gated redirect, guessed selector, plan-gated nav, stale deploy,
-hidden/off-screen marker) live in **`reference/red-test-robustness.md`**. Read
-it now.
+The full taxonomy of untrustworthy REDs, the checklist, and worked cases are
+in **`reference/red-test-robustness.md`**. Read it now.
 
 ---
 
-## D — FIX: compose, don't curtain
+## D — FIX: push each boundary down to the data it guards
 
-**The curtain (the lazy fix):** one coarse `<Suspense>` high in the tree with
-a top-level fallback. Three costs: it keeps the chrome *out* of the static
-shell (only a throwaway copy is prerendered); it swaps the *whole* subtree on
-resolve (client state in the chrome is discarded; the real chrome
-flashes/shifts in); and the hand-built fallback *drifts* as the UI changes,
-because it duplicates structure that also lives in the resolved tree.
+**The anti-pattern: one coarse boundary.** A single `<Suspense>` high in the
+tree with a page-level fallback has three costs. The layout UI stays out of
+the static shell — only a throwaway copy of it is prerendered. The entire
+subtree is replaced when the boundary resolves, discarding client state and
+shifting layout. And the hand-built fallback drifts out of sync as the UI
+changes, because it duplicates structure that also exists in the resolved
+tree.
 
-**The discipline:** hoist the static, sink the Suspense. Make the static shell
-the **composer** — chrome renders once, synchronously, in the shell — and push
-each boundary **down to the single I/O it actually guards**, so only that leaf
-streams and the stable ancestor is reused as-is. The tree itself *is* the
-loading state; there is no separate skeleton to keep in sync.
+**The fix: hoist the static, push the Suspense down.** Render the layout UI
+once, synchronously, in the shell, and wrap each await in a boundary scoped to
+the single read it guards. Only that leaf streams; the stable ancestors are
+reused as-is. The tree itself defines the loading state — there is no separate
+page-level skeleton to keep in sync.
 
-**Litmus test:** if an element renders in *both* the fallback and the resolved
-tree, you've recreated the shell — hoist it *above* the boundary.
+**Rule:** if an element renders in both the fallback and the resolved tree,
+hoist it above the boundary.
 
-### The #1 bug class: a top-level `await` in a layout on a fallback route
+### The most common blocker: a top-level `await` in a layout on a fallback route
 
 ```
 app/[locale]/(app)/[tenant]/dashboard/...
-       │ generateStaticParams ✓   │ NO generateStaticParams → FALLBACK
+       │ generateStaticParams ✅   │ no generateStaticParams → fallback route
 ```
 
-When **any** dynamic segment in the route lacks `generateStaticParams`, the
-route is a **fallback route** → *all* params defer to request time, even the
-enumerated ones. So a **top-level `await` in a layout** (`await params`,
-`await getServerSession()`, an auth gate) blocks the whole subtree out of the
-static shell — even when it reads a "statically known" param. Minimal repro:
-`github.com/gaojude/next-instant-blocking-repro`.
+When any dynamic segment in the route lacks `generateStaticParams`, the route
+is a fallback route, and **all** params defer to request time — including the
+enumerated ones. A top-level `await` in a layout (`await params`,
+`await getServerSession()`, an auth gate) then blocks the whole subtree out of
+the static shell, even when it reads a statically known param. Minimal
+reproduction: `github.com/gaojude/next-instant-blocking-repro`.
 
 ### The fix: defer the gate, render children
 
 Render `children` unconditionally; move the top-level `await` into a
-`<Suspense>`-wrapped child. The frame prerenders as if authorized; the
-deferred read hangs in prerender, so a `redirect()` only fires at request-time
-resume. (`reference/real-app-patterns.md` → "Deferring an auth gate".)
+`<Suspense>`-wrapped child. The shell prerenders as if authorized; the
+deferred read suspends during prerender, so a `redirect()` only fires at
+request time (`reference/real-app-patterns.md`, "Deferring an auth gate").
 
 ```tsx
-// ⛔ before — gates the whole frame out of the shell
+// ❌ Before — blocks the whole subtree out of the shell
 export default async function Layout({ children, params }) {
-  await requireUser(params)
-  return <Shell>{children}</Shell>
+  await requireUser(params);
+  return <Shell>{children}</Shell>;
 }
 
-// ✅ after — frame is in the shell; gate streams
-import { Suspense } from 'react'
+// ✅ After — the layout is in the shell; the gate streams
+import { Suspense } from "react";
 export default function Layout({ children, params }) {
   return (
     <Shell>
@@ -200,139 +217,126 @@ export default function Layout({ children, params }) {
       </Suspense>
       {children}
     </Shell>
-  )
+  );
 }
 async function RequireUserGate({ params }) {
-  await requireUser(params)
-  return null
+  await requireUser(params);
+  return null;
 }
 ```
 
-The page that consumes the shell should be **sync** (no top-level `await`),
-with its dynamic data already behind `<Suspense>`. `fallback={null}` is
-correct only when the gate renders nothing on success (a side effect, not
-shell content). For **data**, the fallback must be a **real skeleton** — see
-D1. (For every other blocker shape — `cookies()`/`headers()`, uncached
-fetch/DB, dynamic params, `searchParams`, metadata — the before→after recipe
-is in `reference/patterns.md`.)
+The page that consumes the shell should be sync (no top-level `await`), with
+its dynamic data behind `<Suspense>`. `fallback={null}` is correct only when
+the gate renders nothing on success. For data, the fallback must be a real
+loading skeleton — see D1. The before→after recipe for every other blocker
+(`cookies()`/`headers()`, uncached fetch or database reads, dynamic params,
+`searchParams`, metadata) is in `reference/patterns.md`.
 
-### D1 — reuse the page's existing loading UI; never hand-build a skeleton
+### D1 — reuse the route's existing loading UI; do not hand-build skeletons
 
-**Before you write a single line of skeleton, search the repo for the loading
-UI that already exists for this page, and reuse it.** Look, in order:
+Before writing any skeleton, search the repository for the loading UI that
+already exists for this route, in order:
 
 1. the route's `loading.tsx`;
-2. an exported `*Skeleton` next to the component (most design systems colocate
-   one with each data-bearing component);
+2. an exported `*Skeleton` colocated with the component;
 3. the fallback already inside the component's own `<Suspense>`.
 
-If a component has no skeleton, **extract its loading markup into a colocated
-skeleton beside it** — never author a fresh skeleton that mirrors the page
-layout. That hand-built mirror *is* the curtain re-spelled: it's new UI that
-drifts the moment the page changes, and because it's one component it pulls
-you back to a single coarse boundary. Reusing the component's own skeleton
-also keeps the prefetched shell matching the loaded UI exactly.
+If a component has no skeleton, extract its loading markup into a colocated
+skeleton beside it. Do not author a fresh skeleton that mirrors the page
+layout: it duplicates structure, drifts as the page changes, and pulls the
+design back toward a single coarse boundary. Reusing the component's own
+skeleton also keeps the prefetched shell consistent with the loaded UI.
 
-Escape hatch: if the deferred component itself renders `null` for some users
-(a flag-gated control that returns `null` when off), `fallback={null}` is
-right — a skeleton would flash, then collapse.
+Exception: if the deferred component renders `null` for some users (for
+example, a flag-gated control), `fallback={null}` is correct — a skeleton
+would flash and then collapse.
 
-### D2 — the shell must match the real render at every breakpoint (mobile too)
+### D2 — the shell must match the real render at every breakpoint
 
-A hand-built skeleton mirrors **one** layout. The real UI is **responsive** —
-it changes shape at breakpoints — so a skeleton frozen to the desktop shape
-misaligns the moment the viewport is mobile.
+A hand-built skeleton encodes one layout. The real UI is responsive, so a
+skeleton frozen to the desktop layout misaligns on mobile.
 
-The reliable fix is the same push-down: **share the real responsive layout
-between the live render and the shell render.** One responsive component
-renders both — its data slots show the reused `*Skeleton` (D1) in the shell,
-real data after the stream — so the breakpoint switch happens once, for both,
-and there is no second desktop-only skeleton to drift. The moment you
-hand-build a shell that re-creates the chrome, you owe *every* breakpoint of
-it, and you will get one wrong — usually mobile. (This is the litmus test
-again: chrome in both the fallback and the resolved tree → hoist it above the
-boundary so it renders once, responsively.)
-
-**Check both viewports before calling it done:** the shell at desktop width
-*and* at mobile width must line up with the real render at the same width.
+The reliable fix is the same push-down: share the real responsive layout
+between the live render and the shell render. One responsive component renders
+both — its data slots show the reused skeleton (D1) in the shell and real data
+after the stream — so the breakpoint switch happens once, for both, and there
+is no second desktop-only skeleton to drift. Verify the shell against the real
+render at desktop and mobile widths before calling it done.
 
 ## E — PARITY: the refactor changed only the instancy
 
-The push-down is a **mechanical transform, not a redesign.** After it, B must
-render the *same* tree, data, ordering, empty/error states, redirects, and
-interactions as before — the *only* observable difference is that B's shell
-now commits instantly. Verify before shipping:
+The push-down is a mechanical transform, not a redesign. Afterward the route
+must render the same tree, data, ordering, empty and error states, redirects,
+and interactions as before — the only observable difference is that the shell
+now commits instantly. Verify:
 
-- **Same render output.** You moved `await`s into Suspense children; you did
-  not change what they compute or return. After the stream, B shows the same
-  content as the base branch for the test user.
-- **Side effects still fire.** A deferred `redirect()` / `notFound()` still
-  happens — now at request-time resume, not during prerender. Confirm an
-  unauthorized user is still redirected and a missing record still 404s.
-- **Both viewports reach the real UI.** Desktop and mobile both resolve to the
-  real component after the stream (D2).
-- **Client state survives.** Because the chrome is hoisted into the stable
-  shell (not swapped on resolve), open menus, scroll, focus, and input state
-  in it persist across the stream — a curtain would have discarded them.
+- **Same render output.** The moved `await`s compute and return the same
+  values; after the stream, the route shows the same content as the base
+  branch for the test user.
+- **Side effects still fire.** A deferred `redirect()` or `notFound()` still
+  happens — at request time rather than during prerender. Confirm an
+  unauthorized user is still redirected and a missing record still returns 404.
+- **Both viewports reach the real UI** after the stream (D2).
+- **Client state survives.** Because the layout UI is hoisted into the stable
+  shell rather than swapped on resolve, open menus, scroll position, focus,
+  and input state persist across the stream.
 
-If anything other than "it's now instant" changed, the refactor went too far —
-pull it back.
+If anything other than the instancy changed, reduce the refactor.
 
 ## F — DIFFERENTIAL
 
-The most convincing proof the RED measured the property: revert **only** the
-fix → RED; re-apply → GREEN; confirm nothing else moves it. Link both runs in
-the PR. Recipe → **`reference/red-test-robustness.md`**.
+The strongest proof that the test measures the property: revert only the fix →
+RED; re-apply → GREEN; confirm nothing else moves it. Link both runs in the
+PR. Recipe: `reference/red-test-robustness.md`.
 
-## G — REVIEW (the PR gotcha checklist)
+## G — REVIEW (PR checklist)
 
 A green final state means nothing if the RED was never trustworthy. Require:
 
-- [ ] **Differential shown** — RED without the fix, GREEN with it (link the
-      runs). No differential → not proven.
+- [ ] **Differential shown** — RED without the fix, GREEN with it, runs
+      linked.
 - [ ] **Marker is a sync static-shell node** (`data-testid`) — not streamed
       data, not a guessed `role`/`name`.
-- [ ] **Marker renders for the CI test user** — not gated by a flag/plan/role
-      CI lacks; the route doesn't `redirect()` the test user away from the
-      marker page.
-- [ ] **Measured on a prod build**, never `next dev`; verified against the
-      build under test (deploy rebuilt after the last push, not a stale
-      alias — `reference/red-test-robustness.md`, "stale deploy").
-- [ ] **Marker is *visible*** — not `display:none`/off-screen; for lists
-      target the first visible item via `.filter({ visible: true }).first()`
-      (`reference/red-test-robustness.md`, "hidden marker").
-- [ ] **Parity confirmed (phase E)** — same content/redirects/state; only the
-      nav got faster.
-- [ ] **Existing loading UI reused (D1)** — no new page-mirroring
-      `*LoadingSkeleton`; the fallback is the component's own skeleton.
-- [ ] **Shell matches real render at desktop AND mobile (D2)**.
+- [ ] **Marker renders for the CI test user** — not gated by a flag, plan, or
+      role that user lacks; the route does not redirect that user away.
+- [ ] **Measured on a production build**, never `next dev`, and against the
+      build under test (not a stale deployment —
+      `reference/red-test-robustness.md`).
+- [ ] **Marker is visible** — not `display:none` or off-screen; for lists,
+      target `.filter({ visible: true }).first()`.
+- [ ] **Parity confirmed (E)** — same content, redirects, and state.
+- [ ] **Existing loading UI reused (D1)** — no new page-mirroring skeleton.
+- [ ] **Shell matches the real render at desktop and mobile widths (D2)**.
 
-## Soft nav vs page load
+## Driving the navigation in tests
 
-- Drive a real `<Link>` click for a soft-nav assertion, never `page.goto(B)`
-  inside `instant()` — `goto` is a full page load whose shell can differ (a
-  parent layout above the shared boundary re-`await`s un-enumerated params).
-  The MPA-shell caveat is in `reference/real-app-patterns.md`.
-- With parallel routes, only the slots that change re-render on a soft nav;
-  client slot-router chrome doesn't re-render at all. Don't chase a slot the
-  nav never touches — see `reference/real-app-patterns.md`.
+- For a **soft navigation** verdict, drive a real `<Link>` click. Do not use
+  `page.goto()` inside `instant()` for this — `goto` is an initial load, and
+  its shell can differ when a parent layout above the shared boundary awaits
+  un-enumerated params (`reference/real-app-patterns.md`).
+- For an **initial load** verdict, use `page.goto()` inside `instant()` with
+  the `baseURL` option (`test-template.md`).
+- With parallel routes, only the slots that change re-render on a soft
+  navigation; client-rendered navigation UI does not re-render at all. Do not
+  chase a slot the navigation never touches
+  (`reference/real-app-patterns.md`).
 
 ## Files
 
 - `rig-template.md` — phase 0: the six-question rig discovery, the
-  `instant-nav.rig.md` template, and filled examples (Vercel / generic CI /
+  `instant-nav.rig.md` template, and filled examples (Vercel, generic CI,
   local-only).
-- `test-template.md` — the shipped `instant()` spec (phase C) + the
-  delete-before-PR baseline scaffold (phase B).
-- `reference/red-test-robustness.md` — **gate C + phase F**: the false-RED
-  taxonomy, the trustworthiness checklist, the differential recipe, the
-  vacuous-green footgun, and worked cases. Read before optimizing.
-- `reference/patterns.md` — before→after fix recipe for every blocker type
-  (await-at-top, `cookies()`/`headers()`, uncached fetch/DB, dynamic params,
-  `searchParams`, metadata).
-- `reference/real-app-patterns.md` — parallel `@slot`s, deferring an auth
-  gate, soft-nav vs page-load (the MPA-shell caveat), the blank-shell trap,
-  the responsive/mobile-drift trap, sharp edges.
-- `CASE-STUDY.md` — how this methodology let a long-running agent take a real
-  app's PPR shell from an empty `<body>` to instant, unattended, by looping
-  push → CI build → e2e → fix.
+- `test-template.md` — the shipped `instant()` specs for both navigation
+  types (phase C), and the delete-before-PR baseline scaffold (phase B).
+- `reference/red-test-robustness.md` — gate C and phase F: the taxonomy of
+  untrustworthy REDs, the checklist, the differential recipe, the vacuous-pass
+  failure mode, and worked cases.
+- `reference/patterns.md` — before→after fix recipe for each blocker type
+  (top-level `await`, `cookies()`/`headers()`, uncached fetch or database
+  reads, dynamic params, `searchParams`, metadata).
+- `reference/real-app-patterns.md` — parallel routes, deferring an auth gate,
+  initial-load vs soft-navigation shells, the blank-shell trap, the
+  responsive-skeleton trap, edge cases.
+- `CASE-STUDY.md` — how this methodology let a long-running agent restore a
+  production app's PPR shell unattended, by looping push → CI build → e2e →
+  fix.

@@ -11,27 +11,27 @@ with Cache Components.
 
 ## The problem
 
-v0 had PPR enabled. The logged-in home still served an empty `<body>` on a
-hard load.
+v0 had PPR enabled. The logged-in home still served an empty `<body>` on an
+initial load (a hard navigation).
 
 Nobody noticed for months. The page eventually rendered, so nothing looked
 broken. But the static shell — the entire point of PPR — wasn't there. Every
-hard load paid full dynamic render time before the user saw anything.
+initial load paid full dynamic render time before the user saw anything.
 
-"Optimize the PPR shell" is a real engineering task. It is also a terrible
-agent prompt. There's no definition of done. The agent can move some
-`<Suspense>` boundaries, see no errors, and declare victory. You can't review
-your way out of that — the failure is only observable in a prod build, under
-specific timing, as a logged-in user.
+"Optimize the PPR shell" is a real engineering task. It is also a poor task
+definition for an agent. There's no definition of done. The agent can move
+some `<Suspense>` boundaries, see no errors, and declare victory. You can't
+review your way out of that — the failure is only observable in a production
+build, under specific timing, as a logged-in user.
 
 ## The formulation
 
 So we didn't ask for an optimization. We wrote a test that encodes the
 user-visible promise, watched it fail, and asked the agent to make it green.
 
-The promise: *a hard load of the home serves a static shell with a working
+The promise: _an initial load of the home serves a static shell with a working
 composer — and a prompt you start typing before the page finishes hydrating
-survives all the way to the chat API.*
+survives all the way to the chat API._
 
 The test (abridged from `instant-home-load.spec.ts`, vercel/v0#25041):
 
@@ -39,20 +39,20 @@ The test (abridged from `instant-home-load.spec.ts`, vercel/v0#25041):
 await instant(
   page,
   async () => {
-    await page.goto(homeUrl)
-    const input = page.locator(INPUT).first()
-    await input.click()
-    await input.pressSequentially('1+', { delay: 20 })
+    await page.goto(homeUrl);
+    const input = page.locator(INPUT).first();
+    await input.click();
+    await input.pressSequentially("1+", { delay: 20 });
   },
   { baseURL },
-)
+);
 
 // lock released — dynamic data resumes, hydration completes
-await page.locator(INPUT).first().pressSequentially('1', { delay: 20 })
-await promptPrimaryActionButton(page).first().click()
+await page.locator(INPUT).first().pressSequentially("1", { delay: 20 });
+await promptPrimaryActionButton(page).first().click();
 
-const body = await postedChatRequest
-expect(body).toContain('1+1') // typed across the hydration boundary
+const body = await postedChatRequest;
+expect(body).toContain("1+1"); // typed across the hydration boundary
 ```
 
 One assertion, five properties it forces:
@@ -66,8 +66,8 @@ One assertion, five properties it forces:
 5. The submit pipeline accepts the prompt end to end.
 
 You cannot game this test by wrapping things in `<Suspense fallback={null}>`.
-You cannot pass it with a shell that renders but eats your keystrokes. That's
-the whole trick: the test is the spec.
+You cannot pass it with a shell that renders but drops your keystrokes. That
+is the point: the test is the specification.
 
 ## The ruler: `instant()`
 
@@ -75,8 +75,8 @@ The test is only writable because of `@next/playwright`'s `instant()` helper
 ([Andrew Clark's](https://github.com/acdlite) instant-navigation testing work
 in Next.js). `instant()` is a lock, not a stopwatch. It gates dynamic data and
 freezes the world so you can assert what's in the static shell — presence, not
-speed. Under the lock, an instant route's shell is simply *there*, and a
-blocking route's content *never* commits, no matter how long you wait. That
+speed. Under the lock, an instant route's shell is simply _there_, and a
+blocking route's content _never_ commits, no matter how long you wait. That
 makes the verdict deterministic, which is what lets a machine consume it.
 
 This property is load-bearing. An agent looping unattended cannot interpret "it
@@ -95,10 +95,10 @@ push code → CI builds the preview deploy → run the e2e against the preview
         └────────────── read the failure, fix ──────────────────┘
 ```
 
-No special harness. The preview deploy is the rig: a real prod build, real
+No special harness. The preview deploy is the rig: a real production build, real
 env, testing API exposed (`experimental.exposeTestingApiInProductionBuild` —
 v0 gates it on `VERCEL_ENV === 'preview'`; any CI that produces a runnable
-prod build per push closes the same loop, and the skill's setup phase records
+production build per push closes the same loop, and the skill's setup phase records
 what that looks like in your repo). Each iteration costs a CI build, so the
 loop is slow — minutes per turn, hours end to end. That's fine. It runs
 without a human watching.
@@ -152,7 +152,7 @@ None of these is an "AI-shaped" change. They're the bugs a careful engineer
 would find with unlimited patience and a deterministic repro. The test
 supplied the repro; the agent supplied the patience.
 
-The result, verified against the preview: a hard load of the logged-in home
+The result, verified against the preview: an initial load of the logged-in home
 serves a ~79KB static shell with an interactive composer, the typed prompt
 survives hydration into the chat API request body, and the e2e guards it in CI
 from then on.
@@ -164,8 +164,8 @@ capability is conditional on the problem formulation. Three properties did the
 work:
 
 1. **A machine-checkable definition of done.** Not "make it faster" —
-   *this test, green, on the preview deploy*. The agent never negotiates with
-   a vibe.
+   _this test, green, on the preview deploy_. The agent never has to interpret
+   a subjective goal.
 2. **A trustworthy verdict.** A RED that's red for the wrong reason sends the
    agent optimizing a route that was never broken; a vacuous GREEN (lock never
    engaged, stale deploy) ends the loop with nothing shipped. Humans waste an

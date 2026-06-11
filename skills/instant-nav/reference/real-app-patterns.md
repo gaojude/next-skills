@@ -1,58 +1,58 @@
 # Real-app patterns
 
-The rest of this skill models a single linear `layout → page` tree. Production App Router routes add **parallel-route slots, shared chrome, and auth gates** — where most of the real instant-shell work happens. These patterns bridge that gap. Read the skill's `SKILL.md` and `patterns.md` first.
+The rest of this skill models a single linear `layout → page` tree. Production App Router routes add **parallel routes, shared layout UI, and auth gates** — where most of the real static-shell work happens. These patterns bridge that gap. Read the skill's `SKILL.md` and `patterns.md` first.
 
-## Parallel routes & `@slot`s — each slot is its own boundary
+## Parallel routes — each slot is its own boundary
 
 Instant validation treats every parallel-route slot below the shared layout as an **independent** navigation boundary. Consequences:
 
 - **Each `@slot` needs its own `<Suspense>`** around its dynamic reads — a boundary in one slot does not cover another.
-- **An uncovered dynamic read in _any_ slot blocks the whole navigation.** `@content` being perfect doesn't help if `@sidebar` awaits a session at the top.
-- **A slot that renders `null` (e.g. `default.tsx`) is shell-safe** — static, no reads. Slots you don't re-render for this nav cost nothing.
+- **An uncovered dynamic read in any slot blocks the whole navigation.** A perfect `@content` does not help if `@sidebar` awaits a session at the top.
+- **A slot that renders `null` (e.g. `default.tsx`) is shell-safe** — static, no reads. Slots that do not re-render for this navigation cost nothing.
 
 ```
-[tenant]/layout.tsx         (shared — already mounted on a soft nav; not re-rendered)
+[tenant]/layout.tsx         (shared — already mounted on a soft navigation; not re-rendered)
   ├ @content  → settings/layout → billing/page     ← guard each slot's dynamic reads…
   ├ @sidebar  → settings sidebar                    ← …here too (independent boundary)
   └ @header   → default.tsx → null                  ← free
 ```
 
-## Client "slot-router" chrome stays out of the soft-nav re-render
+## Client-rendered slot routing is not part of the soft-navigation re-render
 
-Common pattern: a **stable** shared layout renders `@header`/`@sidebar` through a **client** component that swaps slot content by `usePathname()`. On a soft (client) navigation Next.js only re-renders the **server** segments that changed below the shared layout — a client-component subtree is not part of that server re-render. So that chrome **neither blocks the nav nor needs server `<Suspense>`** for it; only the server segments that actually change (e.g. `@content`) matter for that nav. (It _does_ participate in a full page load — see the MPA caveat below.)
+A common pattern: a stable shared layout renders `@header`/`@sidebar` through a **client** component that swaps slot content based on `usePathname()`. On a soft navigation, Next.js only re-renders the **server** segments that changed below the shared layout — a client-component subtree is not part of that re-render. So that navigation UI neither blocks the navigation nor needs a server `<Suspense>` for it; only the server segments that actually change (e.g. `@content`) matter. It does participate in an initial load — see the caveat below.
 
-## "Instant" ≠ "useful shell" — the empty-fallback trap
+## "Instant" is not "useful shell" — the blank-shell trap
 
-Validation checks that a dynamic read is **guarded by a boundary**, not that the fallback is non-empty. A `<Suspense>` with **no `fallback`** (or `fallback={null}`) **passes** validation and commits instantly — but renders a **blank** shell. If a layout and its page both `await getServerSession()` at the top under one empty-fallback boundary, the whole frame collapses into nothing while the user waits. "Validates as instant" and "good UX" are different goals.
+Validation checks that a dynamic read is **guarded by a boundary**, not that the fallback is non-empty. A `<Suspense>` with no `fallback` (or `fallback={null}`) passes validation and commits instantly — but renders a **blank** shell. If a layout and its page both `await getServerSession()` at the top under one empty-fallback boundary, the whole frame collapses to nothing while the user waits. "Validates as instant" and "good loading experience" are different goals.
 
-> Give every boundary a real skeleton, and push it **low** so the most real content stays in the shell. A `fallback={null}` directly above `<body>` is a deliberate empty-shell opt-out; an empty fallback **lower** in the tree is almost always a bug.
+> Give every boundary a real loading skeleton, and place it low so the most real content stays in the shell. A `fallback={null}` directly above `<body>` is a deliberate empty-shell opt-out; an empty fallback lower in the tree is almost always a bug.
 
-## The responsive / mobile-drift trap — the skeleton must match every breakpoint
+## The responsive-skeleton trap — the shell must match every breakpoint
 
-A real skeleton that misaligns the loaded UI is its own bug, and the place it bites is **mobile**. A hand-built skeleton encodes **one** layout; the real component is **responsive** and changes shape at breakpoints, so a desktop-shaped skeleton no longer lines up once the viewport is small.
+A loading skeleton that misaligns with the loaded UI is its own bug, and it usually appears on mobile. A hand-built skeleton encodes one layout; the real component is responsive and changes shape at breakpoints, so a desktop-shaped skeleton no longer lines up once the viewport is small.
 
-Concrete shape we hit: a settings editor renders a sidebar **tree of rows** on desktop, but swaps the entire tree for a single `<Select>` dropdown on mobile (with its own `Loading…` state). A row-skeleton built for the desktop tree has nothing to align to on mobile.
+A concrete shape: a settings editor renders a sidebar tree of rows on desktop, but replaces the entire tree with a single `<Select>` element on mobile (with its own loading state). A row skeleton built for the desktop tree has nothing to align with on mobile.
 
-The fix is the same push-down as everywhere else: **share the real responsive layout between the live render and the shell render.** Let one responsive component render both — its data slots show the reused `*Skeleton` in the shell and real data after the stream — so the breakpoint switch (tree ↔ dropdown) happens once, for both renders, and there is no second desktop-only skeleton to drift. If instead you hand-build a fallback that re-creates the chrome, you owe *every* breakpoint of that chrome and you will get one wrong.
+The fix is the same push-down as everywhere else: **share the real responsive layout between the live render and the shell render.** One responsive component renders both — its data slots show the reused `*Skeleton` in the shell and real data after the stream — so the breakpoint switch happens once, for both renders, and there is no second desktop-only skeleton to drift. A hand-built fallback that duplicates the layout must be maintained at every breakpoint, and one of them will be wrong.
 
-Litmus: this is the same rule as "if an element renders in both the fallback and the resolved tree, hoist it above the boundary" — responsive chrome included. Verify the shell at **both** desktop and mobile width against the real render at the same width.
+This is the same rule as "if an element renders in both the fallback and the resolved tree, hoist it above the boundary" — responsive layout included. Verify the shell at both desktop and mobile widths against the real render at the same width.
 
 ## Deferring an auth gate / top-level `await` in a layout
 
-A top-level `await` in a layout gates everything below it (the #1 blocking shape, `patterns.md` #1–#2). Auth gates are the most common real instance:
+A top-level `await` in a layout blocks everything below it (the most common blocker, `patterns.md` #1–#2). Auth gates are the most common real instance:
 
 ```tsx
-// ⛔ before — await + redirect at the top gates the whole settings frame
+// ❌ Before — the await + redirect at the top blocks the whole settings frame
 export default async function SettingsLayout({ children }) {
-  const s = await getServerSession() // hangs in prerender → frame can't build
-  if (!s?.user) redirect(getLoginUrl())
-  return <TooltipProvider>{children}</TooltipProvider>
+  const s = await getServerSession(); // suspends during prerender → frame can't build
+  if (!s?.user) redirect(getLoginUrl());
+  return <TooltipProvider>{children}</TooltipProvider>;
 }
 ```
 
 ```tsx
-// ✅ after — render children unconditionally; move the gate into a Suspense child
-import { Suspense } from 'react'
+// ✅ After — render children unconditionally; move the gate into a Suspense child
+import { Suspense } from "react";
 
 export default function SettingsLayout({ children }) {
   return (
@@ -62,37 +62,37 @@ export default function SettingsLayout({ children }) {
       </Suspense>
       {children}
     </TooltipProvider>
-  )
+  );
 }
 
 async function AuthGate() {
-  const s = await getServerSession() // session read hangs in prerender…
-  if (!s?.user) redirect(getLoginUrl()) // …so redirect() never runs during prerender
-  return null
+  const s = await getServerSession(); // the session read suspends during prerender…
+  if (!s?.user) redirect(getLoginUrl()); // …so redirect() never runs at build time
+  return null;
 }
 ```
 
-The shell builds **as if authorized** — the session read hangs before `redirect()` is reached, so the redirect only happens at request-time resume — and `{children}` is now in the shell instead of behind the gate. (`fallback={null}` is correct here: `AuthGate` renders nothing on success.)
+The shell prerenders as if authorized — the session read suspends before `redirect()` is reached, so the redirect only happens at request time — and `{children}` is now in the shell instead of behind the gate. (`fallback={null}` is correct here: `AuthGate` renders nothing on success.)
 
 ## Dev-overlay observation (optional)
 
-Trustworthy measurement uses the prod-build rig (SKILL.md phase A; dev `instant()` lies for blocking routes). As an optional _observation_ channel while authoring, you can also iterate in the dev overlay:
+Trustworthy measurement uses the production-build rig (SKILL.md phase A; `next dev`'s `instant()` is unreliable for blocking routes). As an additional observation channel while authoring, the dev overlay can shorten iteration:
 
-1. `export const unstable_instant = true` on the target route (safe — see "Sharp edges").
+1. `export const unstable_instant = true` on the target route (safe — see "Edge cases").
 2. Run `next dev` with `experimental.instantInsights.validationLevel: 'warning'` (or higher) and `experimental.instantNavigationDevToolsToggle: true`.
-3. Navigate to the route; read the **Insights / Instant tab** in the dev overlay — each entry is an uncovered dynamic read with its source frame. Fix, repeat.
-4. Use DevTools → **Instant Navigation Mode** to freeze the shell and _see_ what's blank.
+3. Navigate to the route and read the **Insights / Instant tab** in the dev overlay — each entry is an uncovered dynamic read with its source frame. Fix and repeat.
+4. Use DevTools → **Instant Navigation Mode** to freeze the shell and inspect what is blank.
 
-## Testing a soft nav when there's no direct A→B link
+## Initial-load shell vs soft-navigation shell
 
-The `test-template.md` spec clicks a `<Link>`. When B is buried (no direct link), you might reach for `page.goto(B)` inside `instant()` — but **`page.goto` is a full page load (MPA), not the soft nav**, and the two shells can differ:
+The `test-template.md` specs drive a `<Link>` click for soft navigations and `page.goto()` for initial loads. The two shells can differ for the same route:
 
-> ⚠️ **MPA shell ≠ soft-nav shell when a layout _above_ the shared boundary `await`s un-enumerated `params`/`searchParams`.** A page load re-runs every layout from the root; if a parent layout does `await props.params` and that segment has no `generateStaticParams`, the param **hangs on the page load** and its whole subtree drops out of the frozen shell — so `goto`-in-`instant()` shows _less_ than the real soft nav (which doesn't re-render that parent and already has the params). Symptom: an element present after a real `<Link>` click is **missing** after `goto`.
+> **The initial-load shell can show less than the soft-navigation shell when a layout above the shared boundary awaits un-enumerated `params`/`searchParams`.** An initial load re-runs every layout from the root; if a parent layout does `await props.params` and that segment has no `generateStaticParams`, the param suspends on the initial load and its whole subtree drops out of the shell. A soft navigation does not re-render that parent and already has the params. Symptom: an element present after a `<Link>` click is missing after `goto`.
 
-So: to assert the **soft-nav** shell, drive a real `<Link>` click (click through the menus if needed). Reserve `page.goto(B)` inside `instant()` for asserting the **page-load** shell, or when no parent above the shared boundary awaits un-enumerated params (then the two coincide).
+To assert the soft-navigation shell, drive a real `<Link>` click (through menus if necessary). Use `page.goto()` inside `instant()` to assert the initial-load shell — or when no parent above the shared boundary awaits un-enumerated params, in which case the two coincide.
 
-## Sharp edges
+## Edge cases
 
-- **`unstable_instant = true` does not fail the build under a `warning` level.** `true` opts in at the _default_ level; only a per-route `{ level: 'experimental-error' }` or a global `experimental-*-error` level fails builds. So `true` is a safe permanent regression marker.
-- **A `React.cache` (or custom memo) wrapper around `cookies()`/`headers()` still hangs.** Memoizing the call does not make it shell-safe — the underlying request read still returns a hanging promise in prerender. Only the **`use cache`** directive, keyed on static/param inputs, puts data in the shell.
-- **Playwright can't "see" a `display: contents` / fragment fallback.** Such a fallback reads as _hidden_, so `instant()` assertions can't `toBeVisible()` it. Give fallbacks a real wrapper element with a `data-testid`.
+- **`unstable_instant = true` does not fail the build under a `warning` level.** `true` opts in at the default level; only a per-route `{ level: 'experimental-error' }` or a global `experimental-*-error` level fails builds. So `true` is a safe permanent regression marker.
+- **A `React.cache` (or custom memoization) wrapper around `cookies()`/`headers()` still suspends.** Memoizing the call does not make it shell-safe — the underlying request read still returns a pending promise during prerender. Only the **`use cache`** directive, keyed on static or param inputs, puts data in the shell.
+- **Playwright cannot see a `display: contents` or fragment fallback.** Such a fallback reads as hidden, so `instant()` assertions cannot `toBeVisible()` it. Give fallbacks a real wrapper element with a `data-testid`.
