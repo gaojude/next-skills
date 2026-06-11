@@ -96,8 +96,10 @@ push code → CI builds the preview deploy → run the e2e against the preview
 ```
 
 No special harness. The preview deploy is the rig: a real prod build, real
-env, testing API exposed (`experimental.exposeTestingApiInProductionBuild`
-gated on `VERCEL_ENV === 'preview'`). Each iteration costs a CI build, so the
+env, testing API exposed (`experimental.exposeTestingApiInProductionBuild` —
+v0 gates it on `VERCEL_ENV === 'preview'`; any CI that produces a runnable
+prod build per push closes the same loop, and the skill's setup phase records
+what that looks like in your repo). Each iteration costs a CI build, so the
 loop is slow — minutes per turn, hours end to end. That's fine. It runs
 without a human watching.
 

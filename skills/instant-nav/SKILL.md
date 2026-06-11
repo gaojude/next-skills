@@ -1,6 +1,6 @@
 ---
 name: instant-nav
-description: Make a Next.js navigation (or hard load) instant under Cache Components / PPR, and prove it with @next/playwright instant(). Use when asked to make an A→B navigation render instantly (or "instantify" a route), fix a route whose static shell isn't prefetched or served, or write the instant() e2e guard for one. Covers the prod-build measurement rig, the RED-test trustworthiness gate, the compose-don't-curtain fix patterns, and the parity check that the refactor changed only the instancy.
+description: Make a Next.js navigation (or hard load) instant under Cache Components / PPR, and prove it with @next/playwright instant(). Use when asked to make an A→B navigation render instantly (or "instantify" a route), fix a route whose static shell isn't prefetched or served, or write the instant() e2e guard for one. Platform-agnostic by design — a setup phase discovers the project's own build/deploy/test rig (Vercel, generic CI, or local-only) and records it in a project-local rig file. Covers the RED-test trustworthiness gate, the compose-don't-curtain fix patterns, and the parity check that the refactor changed only the instancy.
 ---
 
 # Instant nav — make a navigation instant (and prove it)
@@ -27,10 +27,21 @@ up* under the lock, you do not time it. A trustworthy ruler needs a **prod
 build** (phase A); `next dev`'s `instant()` lies for blocking routes
 (false-passes after ~5s).
 
+## Why a test, not a vibe
+
+You — or an agent — can only work toward what you can verify. This skill turns
+"make this navigation instant" into a deterministic verdict, then spends most
+of its words making that verdict trustworthy, because a reliable verdict is
+what lets the fix loop run unattended (`CASE-STUDY.md`). The principles here
+are environment-independent. Your infrastructure is not — so phase 0 discovers
+this project's actual build/deploy/test flow and records it, instead of
+assuming a platform.
+
 ## The workflow — copy this checklist, check off as you go
 
 ```
-- [ ] A  RIG          prod build + testing API exposed                         → below
+- [ ] 0  SETUP        once per repo: discover + write instant-nav.rig.md       → rig-template.md
+- [ ] A  RIG          prod build + testing API exposed (per the rig file)      → below
 - [ ] B  BASELINE     unlocked: marker renders for the CI test user            → test-template.md
 - [ ] C  RED          locked instant(): shell does NOT commit = the gap        → test-template.md
 - [ ] C-gate PROVE-RED   the RED is trustworthy (the one question)   ⛔ STOP   → reference/red-test-robustness.md
@@ -47,33 +58,48 @@ baseline) ships.
 
 ---
 
+## 0 — SETUP: discover this project's rig, once per repo
+
+The principles in this skill are fixed; the infrastructure they run on is
+yours. On first use in a repo, discover how THIS project builds, deploys,
+authenticates, and tests — inspect the repo first, ask the user only what it
+can't answer — and write the answers to a committed `instant-nav.rig.md`.
+Every later run reads that file instead of rediscovering. The six questions
+(BUILD / EXPOSE / RUN / TEST USER / DRIFT / LOOP), the file template, and
+filled examples (Vercel previews, generic CI + container, local-only) →
+**`rig-template.md`**.
+
 ## A — RIG: a prod build with the testing API exposed
 
-`instant()` works by setting a cookie that lock code **inside the build**
-reads. Two consequences:
+Stand up the rig your `instant-nav.rig.md` describes. Two invariants hold on
+every platform:
 
 1. **Never measure on `next dev`.** Its lock leaks for blocking routes and
    false-passes after ~5s. Not a valid RED or GREEN.
-2. **The build must expose the testing API**, or `instant()` silently no-ops
-   and the test passes **vacuously** (see the footgun in
-   `reference/red-test-robustness.md`). Enable
-   `experimental.exposeTestingApiInProductionBuild` in `next.config.ts` —
-   gate it so it never reaches real production, e.g.:
+2. **The measured build must expose the testing API**, or `instant()`
+   silently no-ops and the test passes **vacuously** (the footgun in
+   `reference/red-test-robustness.md`). Wire
+   `experimental.exposeTestingApiInProductionBuild` to a condition that is
+   true for every build you measure and never true in real production:
 
    ```ts
    experimental: {
+     // pick the spelling your platform gives you — record it in the rig file:
+     //   Vercel:      process.env.VERCEL_ENV === 'preview'
+     //   generic CI:  your preview/staging env var
+     //   local:       an explicit opt-in, as below
      exposeTestingApiInProductionBuild:
-       process.env.VERCEL_ENV === 'preview' ||
        process.env.EXPOSE_TESTING_API === '1',
    }
    ```
 
-The best rig is your **CI preview deploy**: push → CI builds with the real
-env → run the e2e against the preview URL. It has none of the local-build
-walls (missing secrets, server-only imports), and it is the same loop an
-unattended agent can drive: push, wait for the build, run the test, read the
-failure, fix, push again. For fast local iteration: `next build && next start`
-with the flag set.
+The best rig is whatever prod-like build your CI already produces on every
+push — a Vercel preview, a staging container, a build artifact. It has the
+real env (none of the local-build walls), and it closes the loop an unattended
+agent can drive: push, wait for the build, run the test, read the failure,
+fix, push again. No CI? The loop is local and equally trustworthy:
+`next build && next start` with the flag set — the verdict comes from the prod
+build, not the platform.
 
 One caveat with the CI loop: verify the build under test is actually live
 before trusting a verdict — a test run against the *previous* deploy reads as
@@ -86,8 +112,10 @@ Click the real A→B `<Link>` with **no** `instant()` lock and assert B's
 `SHELL_MARKER` renders **as the CI test user** — their flags, plan, role, and
 empty-state. This proves the marker is real *and* reachable: not flag-gated,
 not redirected away, not a guessed selector. Run it as the CI test user, not
-just yourself locally — local-vs-CI flag drift is the #1 false-RED. Scaffold +
-run command → **`test-template.md`**. **Delete this baseline before the PR.**
+just yourself locally — the test runs as someone who isn't you, with flags,
+plan, role, and data that aren't yours, and that drift (the DRIFT list in your
+rig file) is where most false-REDs come from. Scaffold + run command →
+**`test-template.md`**. **Delete this baseline before the PR.**
 
 ## C — RED (locked) + the PROVE-RED gate
 
@@ -291,6 +319,9 @@ A green final state means nothing if the RED was never trustworthy. Require:
 
 ## Files
 
+- `rig-template.md` — phase 0: the six-question rig discovery, the
+  `instant-nav.rig.md` template, and filled examples (Vercel / generic CI /
+  local-only).
 - `test-template.md` — the shipped `instant()` spec (phase C) + the
   delete-before-PR baseline scaffold (phase B).
 - `reference/red-test-robustness.md` — **gate C + phase F**: the false-RED

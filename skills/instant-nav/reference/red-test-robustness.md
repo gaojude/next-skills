@@ -51,9 +51,11 @@ Any of these makes a RED untrustworthy. None of them is "the nav isn't instant."
 
 ## Worked cases (illustrations, not the rule)
 
-Each of these shipped during a real burn-down, failed for a wrong reason, and none was an instancy
-problem. They all fail the one question above — the marker doesn't render unlocked for the CI test
-user.
+Each of these shipped during a real burn-down in the app this skill was extracted from; each failed
+for a wrong reason, and none was an instancy problem. That app's drift surface was dominated by
+feature flags and plans — yours may be auth state, an empty database, or locale; the taxonomy is the
+menu, your rig file's DRIFT list says which rows apply. They all fail the one question above — the
+marker doesn't render unlocked for the CI test user.
 
 - **Flag-gated redirect** — marker `h1 "Design Systems"`. The page `redirect()`s to a legacy route
   when a feature flag is off; the CI user has it off, so that h1 is never the destination.
@@ -125,9 +127,9 @@ test is only meaningful if the lock actually engaged.
 
 Two defenses (use both):
 
-1. **Confirm the API is exposed on the target.** Gate the flag so preview/CI builds have it (e.g.
-   on `VERCEL_ENV === 'preview'` or an explicit env var — see SKILL.md phase A). Never trust an
-   `instant()` green from a build where it isn't set.
+1. **Confirm the API is exposed on the target.** Wire the flag to your platform's preview/staging
+   condition or an explicit env var — your rig file records the spelling (SKILL.md phases 0 and A).
+   Never trust an `instant()` green from a build where it isn't set.
 2. **Make the test self-validating** — for any route with deferred content, also assert that the
    deferred content is **GATED** under the lock, not just that the shell is present
    (`test-template.md`, self-validating variant). If the lock didn't engage, the content is already

@@ -66,8 +66,9 @@ await expect(page.getByTestId('b-content')).toBeVisible() // streams after relea
 
 Before optimizing, prove the target exists with an **unlocked** (no `instant()`) check — it
 disambiguates "not instant" from "marker absent for this user/env". **Run it as the CI test user**
-(their flags, plan, role, data) — not just as yourself locally; local-vs-CI flag/plan drift is the
-#1 false-RED. Confirm the marker is real AND reachable, then **delete it before the PR**:
+(their flags, plan, role, data) — not just as yourself locally; drift between your session and that
+account (the DRIFT list in your rig file) is where most false-REDs come from. Confirm the marker is
+real AND reachable, then **delete it before the PR**:
 
 ```ts
 test('dev-only: clicking <trigger> renders B shell (no lock)', async ({
