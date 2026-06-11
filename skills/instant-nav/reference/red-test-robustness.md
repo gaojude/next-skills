@@ -1,9 +1,9 @@
-# RED-test robustness — prove the RED before optimizing
+# RED-test robustness — verify the RED before optimizing
 
 Gate C of the workflow. The most expensive mistake in this work is optimizing against a RED that is
 red for the wrong reason: the route becomes instant, the test stays red (or the code is contorted to
 satisfy a broken assertion), and the effort lands on the wrong problem. The prevention is cheap —
-spend a few minutes proving the RED is trustworthy first.
+spend a few minutes verifying the RED is trustworthy first.
 
 ## The deciding question
 
@@ -73,7 +73,7 @@ taxonomy is the menu; the rig file's DRIFT list says which rows apply.
   off-screen carousel card; Playwright resolved the element but reported it hidden. → check 10.
   Fix: an always-visible node; for lists, `.filter({ visible: true }).first()`.
 
-## Differential proof (capture in the PR)
+## Differential check (capture in the PR)
 
 The strongest evidence that the RED measured the property:
 
@@ -101,7 +101,7 @@ Therefore:
   late.
 - Do not use `locator.isVisible({ timeout })` as a soft wait — Playwright deprecated and ignores
   that timeout; the call returns immediately.
-- "Renders for the CI test user" (checks 7–9) is proven at authoring time with the unlocked
+- "Renders for the CI test user" (checks 7–9) is established at authoring time with the unlocked
   baseline scaffold, not by a timed assertion in the shipped test.
 
 ## `instant()` guards need no retries and no prefetch warming

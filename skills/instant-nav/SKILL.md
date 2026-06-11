@@ -1,13 +1,14 @@
 ---
 name: instant-nav
-description: Make a Next.js route render instantly under Cache Components / PPR — on initial load (hard navigation) and on client-side navigation (soft navigation) — and prove it with @next/playwright instant(). Use when asked to make a navigation instant, fix a route whose static shell isn't served or prefetched, or write the instant() e2e guard for one. A setup phase discovers the project's build/deploy/test infrastructure (Vercel, generic CI, or local-only) and records it in a project-local rig file. Covers the RED-test trustworthiness gate, the Suspense push-down fix patterns, and the parity check that the refactor changed only the instancy.
+description: Make a Next.js route render instantly under Cache Components / PPR — on initial load (hard navigation) and on client-side navigation (soft navigation) — by formulating the goal as a failing @next/playwright instant() e2e and working it to green; the shipped test then guards against regression. Use when asked to make a navigation instant, fix a route whose static shell isn't served or prefetched, or write the instant() e2e guard for one. A setup phase discovers the project's build/deploy/test infrastructure (Vercel, generic CI, or local-only) and records it in a project-local rig file. Covers the RED-test trustworthiness gate, the Suspense push-down fix patterns, and the parity check that the refactor changed only the instancy.
 ---
 
 # instant-nav
 
-Take one route from "not instant" to "instant", and prove it with
-`@next/playwright`'s `instant()`. Work the phases 0 → G in order; each ends in
-a gate. Fix recipes live in two lazily-read references —
+Take one route from "not instant" to "instant" with a test-driven loop:
+encode the goal as a failing `@next/playwright` `instant()` test, make it
+green, and ship the test as the regression guard. Work the phases 0 → G in
+order; each ends in a gate. Fix recipes live in two lazily-read references —
 `reference/patterns.md` (before→after for each blocker type) and
 `reference/real-app-patterns.md` (parallel routes, auth gates, the blank-shell
 and responsive-skeleton traps). Read one only when its phase points there.
@@ -48,12 +49,14 @@ the lock; do not time it. A trustworthy verdict requires a production build
 (phase A) — `next dev`'s `instant()` is unreliable for blocking routes and
 reports a false pass after ~5s.
 
-## Verification first
+## Formulate it as a verification problem
 
-You — or an agent — can only work toward what you can verify. This skill turns
-"make this route instant" into a deterministic test verdict, then makes that
-verdict trustworthy; a reliable verdict is what allows the fix loop to run
-unattended (`CASE-STUDY.md`). The principles below are
+"Make this route instant" is an open-ended optimization; agents work best on
+verification problems. This skill converts one into the other: a RED test that
+encodes the goal, a deterministic verdict to work toward, and a GREEN that
+means done — after which the same test prevents regression. The gates exist to
+keep the verdict trustworthy; a reliable verdict is what allows the fix loop
+to run unattended (`CASE-STUDY.md`). The principles below are
 environment-independent. Your infrastructure is not, so phase 0 discovers the
 project's actual build/deploy/test flow rather than assuming a platform.
 
@@ -64,7 +67,7 @@ project's actual build/deploy/test flow rather than assuming a platform.
 - [ ] A  RIG          production build with the testing API exposed            → below
 - [ ] B  BASELINE     unlocked: the marker renders for the CI test user        → test-template.md
 - [ ] C  RED          locked instant(): the shell does not commit              → test-template.md
-- [ ] C-gate          PROVE-RED: stop until the RED is trustworthy             → reference/red-test-robustness.md
+- [ ] C-gate          VERIFY-RED: stop until the RED is trustworthy            → reference/red-test-robustness.md
 - [ ] D  FIX          push each Suspense boundary down to the data it guards   → reference/patterns.md
 - [ ]      D1 reuse the route's existing loading UI; do not hand-build skeletons
 - [ ]      D2 the shell matches the real render at every breakpoint
@@ -129,19 +132,19 @@ commit; do not race the rebuild.
 
 Drive the real navigation with no `instant()` lock and assert that the
 destination's `SHELL_MARKER` renders **as the CI test user** — their flags,
-plan, role, and data. This proves the marker is real and reachable: not
+plan, role, and data. This establishes that the marker is real and reachable: not
 flag-gated, not redirected away, not a guessed selector. The test runs as
 someone who is not you, with state that is not yours; that drift (the DRIFT
 list in the rig file) is where most untrustworthy REDs come from. Scaffold and
 run command: **`test-template.md`**. **Delete this baseline before the PR.**
 
-## C — RED (locked) + the PROVE-RED gate
+## C — RED (locked) + the VERIFY-RED gate
 
 Wrap the same navigation in `instant()`; assert the shell commits under the
 lock. A RED here is the gap. **This is the test that ships**
 (`test-template.md`).
 
-> **Gate C — do not start optimizing until the RED is proven trustworthy.** A
+> **Gate C — do not start optimizing until the RED is verified trustworthy.** A
 > RED that is red for the wrong reason sends you optimizing a route that was
 > never broken — the most expensive mistake in this work.
 
@@ -285,7 +288,7 @@ If anything other than the instancy changed, reduce the refactor.
 
 ## F — DIFFERENTIAL
 
-The strongest proof that the test measures the property: revert only the fix →
+The strongest evidence that the test measures the property: revert only the fix →
 RED; re-apply → GREEN; confirm nothing else moves it. Link both runs in the
 PR. Recipe: `reference/red-test-robustness.md`.
 

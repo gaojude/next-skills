@@ -5,7 +5,7 @@ destination's static shell appears. `instant()` gates dynamic data, so a correct
 commits its shell under the lock and a blocking route does not. `instant()` is not a stopwatch —
 the test does not measure or bound how fast anything appears, so there are no custom timeouts and
 no timing races (see `reference/red-test-robustness.md`). Whether the marker is the right one —
-rendering for the CI test user, not flag-gated, not redirected away, not guessed — is proven at
+rendering for the CI test user, not flag-gated, not redirected away, not guessed — is established at
 authoring time with the unlocked baseline scaffold below (phase B, gate C), not by additional
 assertions in the shipped test.
 
@@ -89,7 +89,7 @@ await expect(page.getByTestId("b-content")).toBeVisible(); // streams after rele
 
 ## Baseline scaffold — do not ship
 
-Before optimizing, prove the target exists with an unlocked check (no `instant()`). It
+Before optimizing, confirm the target exists with an unlocked check (no `instant()`). It
 disambiguates "not instant" from "marker absent for this user or environment". Run it as the CI
 test user — drift between your session and that account (the DRIFT list in the rig file) is where
 most untrustworthy REDs come from. Confirm the marker is real and reachable, then delete the
@@ -120,5 +120,5 @@ Notes:
   prefetch. A flaky guard has a real cause — a marker that is not a sync shell node, a
   flag/role/empty-state gap for the CI user, or a genuinely blocking route. Retries mask the
   regression the guard exists to catch.
-- Differential proof, captured in the PR: revert only the fix → RED; re-apply → GREEN; nothing
+- Differential check, captured in the PR: revert only the fix → RED; re-apply → GREEN; nothing
   else moves it. Link both runs (`reference/red-test-robustness.md`).

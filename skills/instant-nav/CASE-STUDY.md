@@ -170,7 +170,7 @@ work:
    agent optimizing a route that was never broken; a vacuous GREEN (lock never
    engaged, stale deploy) ends the loop with nothing shipped. Humans waste an
    afternoon on these; an unattended agent wastes the whole run. The
-   PROVE-RED gate and the self-validating test shape exist exactly for this.
+   VERIFY-RED gate and the self-validating test shape exist exactly for this.
 3. **A loop the agent can drive itself.** Push, wait for CI, run the e2e, read
    the failure. Every piece already existed for humans; the agent just runs it
    more times than a human would tolerate.
