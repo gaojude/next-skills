@@ -26,6 +26,7 @@ Works with Claude Code, Cursor, Codex, and the other agents the
 | [`diagnose-instant-nav`](skills/diagnose-instant-nav/SKILL.md) | Grade the shell for an internal client-side navigation — what the user sees the instant they click a link. |
 | [`locate-route`](skills/locate-route/SKILL.md) | Identify the layout chain, page entry, and error boundaries that render the URL currently loaded in the browser — via `/_next/mcp`. |
 | [`prep-browser-session`](skills/prep-browser-session/SKILL.md) | Bootstrap the browser session the diagnose-* skills assume. Invoked automatically by `diagnose-page-load`; run directly when a leaf reports no active session. |
+| [`instant-nav`](skills/instant-nav/SKILL.md) | Fix, not just diagnose: make one navigation (or hard load) instant under Cache Components and prove it with an `@next/playwright` `instant()` e2e. RED → fix → GREEN, with gates against tests that lie. Includes a [case study](skills/instant-nav/CASE-STUDY.md) of an agent driving this loop unattended against CI. |
 
 ## Prerequisites
 
@@ -34,3 +35,6 @@ Works with Claude Code, Cursor, Codex, and the other agents the
   (`npm i -g @vercel/next-browser && playwright install chromium`).
 - System Chrome (the skills launch it via `--executable-path` rather
   than the Playwright-bundled testing browser).
+- `instant-nav` only: Playwright + `@next/playwright`, and a prod build
+  with `experimental.exposeTestingApiInProductionBuild` (no
+  agent-browser needed).
